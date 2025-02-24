@@ -44,7 +44,7 @@ const HeroSection = () => {
               Get Started
             </Button>
           </Link>
-          <Link href="https://github.com/prajwalkamble/Whealth">
+          <Link href="https://github.com/prajwalkamble/Whealth" target="_blank">
             <Button size="lg" variant="outline" className="px-8">
               Watch Demo
             </Button>
