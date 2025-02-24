@@ -27,7 +27,7 @@ export default function RootLayout({ children }) {
           <footer className="bg-blue-50 py-12">
             <div className="container mx-auto px-4 text-center text-gray-600">
               <p>&copy; {currentYear}, Whealth</p>
-              <p>Developed by <strong><a href="https://prajwalpk.vercel.app">Prajwal Kamble.</a></strong></p>
+              <p>Developed by <strong><a href="https://prajwalpk.vercel.app" target="_blank">Prajwal Kamble.</a></strong></p>
             </div>
           </footer>
         </body>
