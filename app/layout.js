@@ -12,6 +12,8 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
+  const currentYear = new Date().getFullYear();
+
   return (
     <ClerkProvider>
       <html lang="en">
@@ -24,7 +26,8 @@ export default function RootLayout({ children }) {
           {/* footer */}
           <footer className="bg-blue-50 py-12">
             <div className="container mx-auto px-4 text-center text-gray-600">
-              <p>&copy; 2024, Whealth</p>
+              <p>&copy; {currentYear}, <strong>Whealth.</strong> All rights reserved.</p>
+              <p>Developed by <strong><a href="https://prajwalpk.vercel.app" target="_blank">Prajwal Kamble.</a></strong></p>
             </div>
           </footer>
         </body>
