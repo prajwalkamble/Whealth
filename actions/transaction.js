@@ -108,6 +108,12 @@ function calculateNextRecurringDate(startDate, interval) {
     case "MONTHLY":
       date.setMonth(date.getMonth() + 1);
       break;
+    case "QUARTERLY":
+      date.setMonth(date.getMonth() + 3);
+      break;
+    case "HALFYEARLY":
+      date.setMonth(date.getMonth() + 6);
+      break;
     case "YEARLY":
       date.setFullYear(date.getFullYear() + 1);
       break;
