@@ -135,7 +135,7 @@ const AccountChart = ({ transactions }) => {
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `&#8377;${value}`}
+                tickFormatter={(value) => `${value}`}
               />
               <Tooltip formatter={(value) => [`₹${value}`, undefined]} />
               <Legend />
