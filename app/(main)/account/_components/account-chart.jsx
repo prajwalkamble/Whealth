@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { endOfDay, format, startOfDay, subDays } from 'date-fns';
-import React, { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -24,7 +24,7 @@ const DATE_RANGES = {
   ALL: { label: "All Time", days: null },
 };
 
-const AccountChart = ({ transactions }) => {
+export function AccountChart ({ transactions }) {
   const [dateRange, setDateRange] = useState("1M");
 
   const filteredData = useMemo(() => {
@@ -39,13 +39,12 @@ const AccountChart = ({ transactions }) => {
       (t) => new Date(t.date) >= startDate && new Date(t.date) <= endOfDay(now)
     );
 
+    // Group transactions by date
     const grouped = filtered.reduce((acc, transaction) => {
       const date = format(new Date(transaction.date), "MMM dd");
-
       if(!acc[date]) {
         acc[date] = { date, income: 0, expense: 0 };
       }
-
       if(transaction.type === "INCOME") {
         acc[date].income += transaction.amount;
       } else {
@@ -96,17 +95,17 @@ const AccountChart = ({ transactions }) => {
           <div className="text-center">
             <p className="text-muted-foreground">Total Income</p>
             <p className="text-lg font-bold text-green-500">
-              &#8377;{totals.income.toFixed(2)}
+              ₹{totals.income.toFixed(2)}
             </p>
           </div>
           <div className="text-center">
-            <p className="text-muted-foreground">Total Expense</p>
+            <p className="text-muted-foreground">Total Expenses</p>
             <p className="text-lg font-bold text-red-500">
-              &#8377;{totals.expense.toFixed(2)}
+              ₹{totals.expense.toFixed(2)}
             </p>
           </div>
           <div className="text-center">
-            <p className="text-muted-foreground">Net Income</p>
+            <p className="text-muted-foreground">Net Balance</p>
             <p
               className={`text-lg font-bold ${
                 totals.income - totals.expense >= 0
@@ -114,7 +113,7 @@ const AccountChart = ({ transactions }) => {
                   : "text-red-500"
               }`}
             >
-              &#8377;{(totals.income - totals.expense).toFixed(2)}
+              ₹{(totals.income - totals.expense).toFixed(2)}
             </p>
           </div>
         </div>
@@ -135,7 +134,7 @@ const AccountChart = ({ transactions }) => {
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `${value}`}
+                tickFormatter={(value) => `₹${value}`}
               />
               <Tooltip formatter={(value) => [`₹${value}`, undefined]} />
               <Legend />
@@ -157,6 +156,4 @@ const AccountChart = ({ transactions }) => {
       </CardContent>
     </Card>
   )
-};
-
-export default AccountChart
+}
