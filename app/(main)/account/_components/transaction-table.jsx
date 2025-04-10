@@ -14,7 +14,7 @@ import useFetch from '@/hooks/use-fetch';
 import { format } from 'date-fns';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, MoreHorizontal, RefreshCw, Search, Trash2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BarLoader } from 'react-spinners';
 import { toast } from 'sonner';
 
@@ -27,7 +27,7 @@ const RECURRING_INTERVALS = {
   YEARLY: "Yearly",
 };
 
-const TransactionTable = ({ transactions }) => {
+export function TransactionTable ({ transactions }) {
   const router = useRouter();
   const [selectedIDs, setSelectedIDs] = useState([]);
   const [sortConfig, setSortConfig] = useState({
@@ -439,6 +439,4 @@ const TransactionTable = ({ transactions }) => {
       )}
     </div>
   );
-};
-
-export default TransactionTable;
+}
