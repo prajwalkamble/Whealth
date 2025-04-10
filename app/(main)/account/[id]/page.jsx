@@ -1,13 +1,12 @@
+import { Suspense } from 'react'
 import { getAccountWithTransactions } from '@/actions/accounts';
-import { notFound } from 'next/navigation';
-import React, { Suspense } from 'react'
-import TransactionTable from '../_components/transaction-table';
 import { BarLoader, HashLoader } from 'react-spinners';
-import AccountChart from '../_components/account-chart';
+import { TransactionTable } from '../_components/transaction-table';
+import { notFound } from 'next/navigation';
+import { AccountChart } from '../_components/account-chart';
 
-const AccountsPage = async ({ params }) => {
-  const { id } = await params;
-  const accountData = await getAccountWithTransactions(id);
+export default async function AccountsPage({ params }) {
+  const accountData = await getAccountWithTransactions(params.id);
 
   if(!accountData) {
     notFound();
@@ -55,5 +54,3 @@ const AccountsPage = async ({ params }) => {
     </Suspense>
   );
 };
-
-export default AccountsPage;
