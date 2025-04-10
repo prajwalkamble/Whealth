@@ -1,6 +1,6 @@
 "use client";
 
-import { createTranasaction, updateTransaction } from '@/actions/transaction';
+import { createTransaction, updateTransaction } from '@/actions/transaction';
 import { transactionSchema } from '@/app/lib/schema';
 import CreateAccountDrawer from '@/components/create-account-drawer';
 import { Button } from '@/components/ui/button';
@@ -17,24 +17,24 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect } from 'react'
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import ReceiptScanner from './receipt-scanner';
+import { ReceiptScanner } from './receipt-scanner';
 
-const AddTransactionForm = ({
+export function AddTransactionForm ({
   accounts,
   categories,
   editMode = false,
   initialData = null,
-}) => {
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
 
   const {
     register,
-    setValue,
     handleSubmit,
     formState: {errors},
     watch,
+    setValue,
     getValues,
     reset,
   } = useForm({
@@ -67,11 +67,7 @@ const AddTransactionForm = ({
     loading: transactionLoading,
     fn: transactionFn,
     data: transactionResult,
-  } = useFetch(editMode ? updateTransaction : createTranasaction);
-
-  const type = watch("type");
-  const isRecurring = watch("isRecurring");
-  const date = watch("date");
+  } = useFetch(editMode ? updateTransaction : createTransaction);
 
   const onSubmit = async (data) => {
     const formData = {
@@ -98,10 +94,6 @@ const AddTransactionForm = ({
     }
   }, [transactionResult, transactionLoading, editMode]);
 
-  const filteredCategories = categories.filter(
-    (category) => category.type === type
-  );
-
   const handleScanComplete = (scannedData) => {
     if (scannedData) {
       setValue("amount", scannedData.amount.toString());
@@ -112,14 +104,24 @@ const AddTransactionForm = ({
       if (scannedData.category) {
         setValue("category", scannedData.category);
       }
+      toast.success("Receipt Scanned Successfully");
     }
   };
+
+  const type = watch("type");
+  const isRecurring = watch("isRecurring");
+  const date = watch("date");
+
+  const filteredCategories = categories.filter(
+    (category) => category.type === type
+  );
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
         {/* AI Receipt Scanner */}
         {!editMode &&  <ReceiptScanner onScanComplete={handleScanComplete} />}
 
+      {/* Type */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Type</label>
         <Select
@@ -140,6 +142,7 @@ const AddTransactionForm = ({
         )}
       </div>
 
+      {/* Amount and Account */}
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-medium">Amount</label>
@@ -173,7 +176,7 @@ const AddTransactionForm = ({
               <CreateAccountDrawer>
                 <Button
                   variant="ghost"
-                  className="w-full select-none items-center text-sm outline-none"
+                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
                 >
                   Create Account
                 </Button>
@@ -187,6 +190,7 @@ const AddTransactionForm = ({
         </div>
       </div>
 
+      {/* Category */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Category</label>
         <Select
@@ -210,6 +214,7 @@ const AddTransactionForm = ({
         )}
       </div>
 
+      {/* Date */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Date</label>
         <Popover>
@@ -240,6 +245,7 @@ const AddTransactionForm = ({
         )}
       </div>
 
+      {/* Description */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Description</label>
         <Input placeholder="Enter description" {...register("description")} />
@@ -248,9 +254,10 @@ const AddTransactionForm = ({
         )}
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border p-3">
+      {/* Recurring Toggle */}
+      <div className="flex flex-row items-center justify-between rounded-lg border p-4">
         <div className="space-y-0.5">
-          <label className="text-sm font-medium cursor-pointer">
+          <label className="text-base font-medium cursor-pointer">
             Recurring Transaction
           </label>
 
@@ -264,6 +271,7 @@ const AddTransactionForm = ({
         />
       </div>
 
+      {/* Recurring Interval */}
       {isRecurring && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Category</label>
@@ -281,7 +289,6 @@ const AddTransactionForm = ({
               <SelectItem value="YEARLY">Yearly</SelectItem>
             </SelectContent>
           </Select>
-
           {errors.recurringInterval && (
             <p className="text-sm text-red-500">
               {errors.recurringInterval.message}
@@ -290,6 +297,7 @@ const AddTransactionForm = ({
         </div>
       )}
 
+      {/* Actions */}
       <div className="flex gap-4">
         <Button
           type="button"
@@ -314,6 +322,4 @@ const AddTransactionForm = ({
       </div>
     </form>
   );
-};
-
-export default AddTransactionForm;
+}
