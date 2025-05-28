@@ -26,7 +26,7 @@ export async function createTransaction(data) {
     // Check rate limit
     const decision = await aj.protect(req, {
       userId,
-      requested: 10, // Specify how many tokens to consume
+      requested: 1, // Specify how many tokens to consume
     });
 
     if (decision.isDenied()) {
