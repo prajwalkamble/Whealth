@@ -32,7 +32,7 @@ export function AccountChart ({ transactions }) {
     const now = new Date();
     const startDate = range.days
       ? startOfDay(subDays(now, range.days))
-      : startOfDay(newDate(0));
+      : startOfDay(new Date(0));
 
     // Filter transactions within date range
     const filtered = transactions.filter(
