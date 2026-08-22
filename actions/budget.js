@@ -1,92 +1,80 @@
 "use server";
 
-import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { withCurrentTenant } from "@/lib/prisma";
+import { budgetInputSchema, parseOrThrow } from "@/app/lib/schema";
 import { revalidatePath } from "next/cache";
 
 export async function getCurrentBudget(accountId) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    return await withCurrentTenant(async (tx, userId) => {
+      // Scoped explicitly as well as by RLS: the query should still be correct
+      // if it is ever run against a connection without a tenant context.
+      const budget = await tx.budget.findUnique({ where: { userId } });
 
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
+      const currentDate = new Date();
+      const startOfMonth = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth(),
+        1
+      );
+      const endOfMonth = new Date(
+        currentDate.getFullYear(),
+        currentDate.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999
+      );
 
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    const budget = await db.budget.findFirst({
-      where: {
-        userId: user.id,
-      },
-    });
-
-    const currentDate = new Date();
-    const startOfMonth = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth(),
-      1
-    );
-    const endOfMonth = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth() + 1,
-      0
-    );
-
-    const expenses = await db.transaction.aggregate({
-      where: {
-        userId: user.id,
-        type: "EXPENSE",
-        date: {
-          gte: startOfMonth,
-          lte: endOfMonth,
+      const expenses = await tx.transaction.aggregate({
+        where: {
+          userId,
+          type: "EXPENSE",
+          date: {
+            gte: startOfMonth,
+            lte: endOfMonth,
+          },
+          accountId,
         },
-        accountId,
-      },
-      _sum: {
-        amount: true,
-      }
-    });
+        _sum: {
+          amount: true,
+        },
+      });
 
-    return {
-      budget: budget ? { ...budget, amount: budget.amount.toNumber() } : null,
-      currentExpenses: expenses._sum.amount
-        ? expenses._sum.amount.toNumber()
-        : 0,
-    };
+      return {
+        budget: budget ? { ...budget, amount: budget.amount.toNumber() } : null,
+        currentExpenses: expenses._sum.amount
+          ? expenses._sum.amount.toNumber()
+          : 0,
+      };
+    });
   } catch (error) {
     console.error("Error fetching budget: ", error);
     throw error;
   }
 }
 
-export async function updateBudget(amount) {
+export async function updateBudget(rawAmount) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    // Validated server-side: nothing stopped a direct call from storing 0 or a
+    // negative budget, which rendered as "Infinity% used" on the dashboard.
+    const amount = parseOrThrow(budgetInputSchema, rawAmount);
 
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    const budget = await db.budget.upsert({
-      where: {
-        userId: user.id
-      },
-      update: {
-        amount,
-      },
-      create: {
-        userId: user.id,
-        amount,
-      },
-    });
+    const budget = await withCurrentTenant(async (tx, userId) =>
+      tx.budget.upsert({
+        where: {
+          userId,
+        },
+        update: {
+          amount,
+        },
+        create: {
+          userId,
+          amount,
+        },
+      })
+    );
 
     revalidatePath("/dashboard");
     return {
@@ -95,6 +83,8 @@ export async function updateBudget(amount) {
     };
   } catch (error) {
     console.error("Error updating budget: ", error);
-    return { success: false, error: error.message };
+    // Thrown so useFetch surfaces it; a returned {success:false} left the
+    // budget editor with no feedback at all.
+    throw new Error(error.message);
   }
 }

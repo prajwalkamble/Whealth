@@ -17,6 +17,11 @@ export function ReceiptScanner({ onScanComplete }) {
   } = useFetch(scanReceipt);
 
   const handleReceiptScan = async (file) => {
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return;
+    }
+
     if (file.size > 5 * 1024 * 1024) {
       toast.error("File size should be less than 5MB");
       return;
@@ -25,10 +30,18 @@ export function ReceiptScanner({ onScanComplete }) {
     await scanReceiptFn(file);
   };
 
+  // onScanComplete is deliberately not a dependency. The parent passes a new
+  // function identity on every render, so including it re-ran this effect on
+  // each re-render and re-applied the scan over whatever the user had since
+  // typed into the form.
+  const onScanCompleteRef = useRef(onScanComplete);
+  useEffect(() => {
+    onScanCompleteRef.current = onScanComplete;
+  }, [onScanComplete]);
+
   useEffect(() => {
     if (scannedData && !scanReceiptLoading) {
-      onScanComplete(scannedData);
-      toast.success("Receipt scanned successfully");
+      onScanCompleteRef.current(scannedData);
     }
   }, [scanReceiptLoading, scannedData]);
 
@@ -42,6 +55,9 @@ export function ReceiptScanner({ onScanComplete }) {
         capture="environment"
         onChange={(e) => {
           const file = e.target.files?.[0];
+          // Clearing the input lets the same file be picked again; otherwise
+          // the value is unchanged and onChange never fires a second time.
+          e.target.value = "";
           if (file) handleReceiptScan(file);
         }}
       />

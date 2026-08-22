@@ -11,13 +11,14 @@ const aj = arcjet({
   key: process.env.ARCJET_KEY,
   rules: [
     shield({
-      mode: "LIVE"
+      mode: "LIVE",
     }),
     detectBot({
-      mode: "LIVE",
+      // LIVE only in production so local tooling is not blocked while developing.
+      mode: process.env.NODE_ENV === "production" ? "LIVE" : "DRY_RUN",
       allow: ["CATEGORY:SEARCH_ENGINE", "GO_HTTP"],
     }),
-  ]
+  ],
 });
 
 const clerk = clerkMiddleware(async (auth, req) => {

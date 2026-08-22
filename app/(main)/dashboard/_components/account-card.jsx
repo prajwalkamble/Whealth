@@ -16,16 +16,15 @@ const AccountCard = ({ account }) => {
     loading: updateDefaultLoading,
     fn: updateDefaultFn,
     data: updatedAccount,
-    error,
   } = useFetch(updateDefaultAccount);
 
-  const handleDefaultChange = async (event) => {
-    event.preventDefault();
-
+  const handleDefaultChange = async (checked) => {
     if (isDefault) {
       toast.warning("You need at least 1 default account");
       return; // Don't allow toggling off the default account
     }
+
+    if (!checked) return;
 
     await updateDefaultFn(id);
   };
@@ -34,26 +33,29 @@ const AccountCard = ({ account }) => {
     if (updatedAccount?.success) {
       toast.success("Default account updated successfully");
     }
-  }, [updatedAccount, updateDefaultLoading]);
+  }, [updatedAccount]);
 
-  useEffect(() => {
-    if (error) {
-      toast.error(error.message || "Failed to update default account");
-    }
-  }, [error]);
+  // updateDefaultAccount throws on failure and useFetch raises the toast, so
+  // there is deliberately no error effect here.
 
   return (
     <Card className="hover:shadow-md transition-shadow group relative">
+      {/* Outside the Link: a Switch renders a <button>, and a <button> inside
+          an <a> is invalid HTML that React flags during hydration. */}
+      <div className="absolute right-6 top-5 z-10">
+        <Switch
+          checked={isDefault}
+          onCheckedChange={handleDefaultChange}
+          disabled={updateDefaultLoading}
+          aria-label={`Make ${name} the default account`}
+        />
+      </div>
+
       <Link href={`/account/${id}`}>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium capitalize">
+          <CardTitle className="text-sm font-medium capitalize pr-14">
             {name}
           </CardTitle>
-          <Switch
-            checked={isDefault}
-            onClick={handleDefaultChange}
-            disabled={updateDefaultLoading}
-          />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">

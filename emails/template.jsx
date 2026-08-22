@@ -10,6 +10,14 @@ import {
 } from "@react-email/components";
 import * as React from "react";
 
+// Emails render from job data, so every numeric field is formatted through one
+// helper that tolerates a missing or non-numeric value instead of throwing
+// inside the template.
+const money = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+};
+
 export default function EmailTemplate({
   userName = "",
   type = "monthly-report",
@@ -33,16 +41,20 @@ export default function EmailTemplate({
             <Section style={styles.statsContainer}>
               <div style={styles.stat}>
                 <Text style={styles.text}>Total Income</Text>
-                <Text style={styles.heading}>&#8377;{data?.stats.totalIncome.toFixed(2)}</Text>
+                <Text style={styles.heading}>&#8377;{money(data?.stats?.totalIncome)}</Text>
               </div>
               <div style={styles.stat}>
                 <Text style={styles.text}>Total Expenses</Text>
-                <Text style={styles.heading}>&#8377;{data?.stats.totalExpenses.toFixed(2)}</Text>
+                <Text style={styles.heading}>&#8377;{money(data?.stats?.totalExpenses)}</Text>
               </div>
               <div style={styles.stat}>
                 <Text style={styles.text}>Net</Text>
                 <Text style={styles.heading}>
-                  &#8377;{data?.stats.totalIncome.toFixed(2) - data?.stats.totalExpenses.toFixed(2)}
+                  &#8377;
+                  {money(
+                    Number(data?.stats?.totalIncome || 0) -
+                      Number(data?.stats?.totalExpenses || 0)
+                  )}
                 </Text>
               </div>
             </Section>
@@ -51,11 +63,11 @@ export default function EmailTemplate({
             {data?.stats?.byCategory && (
               <Section style={styles.section}>
                 <Heading style={styles.heading}>Expenses by Category</Heading>
-                {Object.entries(data?.stats.byCategory).map(
+                {Object.entries(data.stats.byCategory).map(
                   ([category, amount]) => (
                     <div key={category} style={styles.row}>
                       <Text style={{...styles.text, textTransform: "capitalize"}}>{category}: </Text>
-                      <Text style={{...styles.text, marginLeft: "5px"}}> &#8377;{amount.toFixed(2)}</Text>
+                      <Text style={{...styles.text, marginLeft: "5px"}}> &#8377;{money(amount)}</Text>
                     </div>
                   )
                 )}
@@ -94,22 +106,26 @@ export default function EmailTemplate({
             <Heading style={styles.title}>Budget Alert</Heading>
             <Text style={styles.text}>Hello {userName},</Text>
             <Text style={styles.text}>
-              You&rsquo;ve used {data?.percentageUsed.toFixed(1)}% of your
-              monthly budget.
+              You&rsquo;ve used {Number(data?.percentageUsed || 0).toFixed(1)}%
+              of your monthly budget.
             </Text>
             <Section style={styles.statsContainer}>
               <div style={styles.stat}>
                 <Text style={styles.text}>Budget Amount</Text>
-                <Text style={styles.heading}>&#8377;{data?.budgetAmount}</Text>
+                <Text style={styles.heading}>&#8377;{money(data?.budgetAmount)}</Text>
               </div>
               <div style={styles.stat}>
                 <Text style={styles.text}>Spent So Far</Text>
-                <Text style={styles.heading}>&#8377;{data?.totalExpenses}</Text>
+                <Text style={styles.heading}>&#8377;{money(data?.totalExpenses)}</Text>
               </div>
               <div style={styles.stat}>
                 <Text style={styles.text}>Remaining</Text>
                 <Text style={styles.heading}>
-                  &#8377;{data?.budgetAmount - data?.totalExpenses}
+                  &#8377;
+                  {money(
+                    Number(data?.budgetAmount || 0) -
+                      Number(data?.totalExpenses || 0)
+                  )}
                 </Text>
               </div>
             </Section>

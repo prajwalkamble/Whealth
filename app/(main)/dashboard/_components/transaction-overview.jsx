@@ -60,8 +60,8 @@ const DashboardOverview = ({ accounts, transactions }) => {
 
     // Format data for pie chart
     const pieChartData = Object.entries(expensesByCategory).map(
-      ([categoty, amount]) => ({
-        name: categoty,
+      ([category, amount]) => ({
+        name: category,
         value: amount,
       })
     );

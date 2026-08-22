@@ -42,6 +42,8 @@ model Account {
   updatedAt    DateTime      @updatedAt
 
   @@index([userId])
+  // Supports the accounts_isolation RLS predicate and the default-account lookup
+  @@index([userId, isDefault], map: "accounts_user_default_idx")
   @@map("accounts")
 }
 
@@ -72,6 +74,9 @@ model Transaction {
 
   @@index([userId])
   @@index([accountId])
+  // Support the transactions_isolation RLS predicate on the hot read paths
+  @@index([userId, date(sort: Desc)], map: "transactions_user_date_idx")
+  @@index([userId, accountId], map: "transactions_user_account_idx")
   @@map("transactions")
 }
 

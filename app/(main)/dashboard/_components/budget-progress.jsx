@@ -16,15 +16,16 @@ const BudgetProgress = ({ initialBudget, currentExpenses }) => {
     initialBudget?.amount?.toString() || ""
   );
 
-  const percentageUsed = initialBudget
-    ? (currentExpenses / initialBudget.amount) * 100
-    : 0;
+  // Guard the divisor: a budget of 0 rendered as "Infinity% used".
+  const percentageUsed =
+    initialBudget?.amount > 0
+      ? (currentExpenses / initialBudget.amount) * 100
+      : 0;
 
   const {
-    laoding: isLoading,
+    loading: isLoading,
     fn: updateBudgetFn,
     data: updatedBudget,
-    error,
   } = useFetch(updateBudget);
 
   const handleUpdateBudget = async () => {
@@ -45,11 +46,13 @@ const BudgetProgress = ({ initialBudget, currentExpenses }) => {
     }
   }, [updatedBudget]);
 
+  // No error effect here on purpose: updateBudget now throws on failure and
+  // useFetch raises the only toast. A second one here would double it.
+
+  // Keep the editor in sync when a save (or another tab) changes the budget.
   useEffect(() => {
-    if (error) {
-      toast.error(error.message || "Failed to update budget");
-    }
-  }, [error]);
+    setNewBudget(initialBudget?.amount?.toString() || "");
+  }, [initialBudget?.amount]);
 
   const handleCancel = () => {
     setNewBudget(initialBudget?.amount?.toString() || "");

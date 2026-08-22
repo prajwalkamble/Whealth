@@ -131,29 +131,49 @@ export function TransactionTable ({ transactions }) {
     );
   };
 
-  const handleBulkDelete = async () => {
+  const deleteTransactions = async (ids) => {
+    if (ids.length === 0) return;
+
     if (
       !window.confirm(
-        `Are you sure you want to delete ${selectedIDs.length} transactions?`
+        ids.length === 1
+          ? "Are you sure you want to delete this transaction?"
+          : `Are you sure you want to delete ${ids.length} transactions?`
       )
     ) {
       return;
     }
 
-    deleteFn(selectedIDs);
+    const result = await deleteFn(ids);
+    // Only on success -- a failed delete leaves the rows in place, so the
+    // selection is still meaningful and the user can retry.
+    if (result?.success) setSelectedIDs([]);
   };
 
   useEffect(() => {
-    if (deleted && !deleteLoading) {
-      toast.error("Transactions deleted successfully");
+    if (deleted?.success && !deleteLoading) {
+      toast.success(
+        deleted.data?.deleted === 1
+          ? "Transaction deleted successfully"
+          : "Transactions deleted successfully"
+      );
     }
   }, [deleted, deleteLoading]);
+
+  // Deleting or filtering can shrink the result set past the current page,
+  // which left the table empty under a "Page 3 of 2" pager.
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages || 1);
+    }
+  }, [currentPage, totalPages]);
 
   const handleClearFilters = () => {
     setSearchTerm("");
     setTypeFilter("");
     setRecurringFilter("");
     setCurrentPage(1);
+    setSelectedIDs([]);
   };
 
   const handlePageChange = (newPage) => {
@@ -220,7 +240,7 @@ export function TransactionTable ({ transactions }) {
               <Button
                 variant="destructive"
                 size="sm"
-                onClick={handleBulkDelete}
+                onClick={() => deleteTransactions(selectedIDs)}
               >
                 <Trash2 className="h-4 w-4 mr-2"/>
                 Delete Selected ({selectedIDs.length})
@@ -362,10 +382,12 @@ export function TransactionTable ({ transactions }) {
                             <div className="text-sm">
                               <div className="font-medium">Next Date:</div>
                               <div>
-                                {format(
-                                  new Date(transaction.nextRecurringDate),
-                                  "PP"
-                                )}
+                                {transaction.nextRecurringDate
+                                  ? format(
+                                      new Date(transaction.nextRecurringDate),
+                                      "PP"
+                                    )
+                                  : "Not scheduled"}
                               </div>
                             </div>
                           </TooltipContent>
@@ -399,7 +421,7 @@ export function TransactionTable ({ transactions }) {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-destructive cursor-pointer"
-                          onClick = {() => deleteFn([transaction.id])}
+                          onClick={() => deleteTransactions([transaction.id])}
                         >
                           Delete
                         </DropdownMenuItem>

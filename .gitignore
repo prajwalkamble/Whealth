@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# use pnpm; npm lockfile is not tracked
+package-lock.json

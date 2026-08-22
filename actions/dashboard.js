@@ -1,10 +1,11 @@
 "use server";
 
 import aj from "@/lib/arcjet";
-import { db } from "@/lib/prisma";
 import { request } from "@arcjet/next";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { withCurrentTenant } from "@/lib/prisma";
+import { accountInputSchema, parseOrThrow } from "@/app/lib/schema";
 
 const serializeTransaction = (obj) => {
   const serialized = { ...obj };
@@ -17,17 +18,22 @@ const serializeTransaction = (obj) => {
   return serialized;
 };
 
-export async function createAccount(data) {
+export async function createAccount(rawData) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthoroized");
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) throw new Error("Unauthorized");
+
+    // Re-validated server-side: the form schema only ever ran in the browser.
+    // Parsing also drops unknown keys, so the create below cannot be fed extra
+    // columns such as id or userId.
+    const data = parseOrThrow(accountInputSchema, rawData);
 
     // Get request data for Arcjet
     const req = await request();
 
     //Check rate limit
     const decision = await aj.protect(req, {
-      userId,
+      userId: clerkUserId,
       requested: 1, // Specify how many tokens to consume
     });
 
@@ -48,68 +54,42 @@ export async function createAccount(data) {
       throw new Error("Request blocked");
     }
 
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
+    const account = await withCurrentTenant(async (tx, userId) => {
+      // Check if this is the user's first account
+      const existingAccounts = await tx.account.count({ where: { userId } });
 
-    if (!user) {
-      throw new Error("User not found");
-    }
+      const shouldBeDefault = existingAccounts === 0 ? true : data.isDefault;
 
-    // Convert balance to float before saving
-    const balanceFloat = parseFloat(data.balance);
-    if (isNaN(balanceFloat)) {
-      throw new Error("Invalid balance amount");
-    }
+      // If the account should be default, unset other default accounts
+      if (shouldBeDefault) {
+        await tx.account.updateMany({
+          where: { userId, isDefault: true },
+          data: { isDefault: false },
+        });
+      }
 
-    // Check if this is the user's first account
-    const existingAccounts = await db.account.findMany({
-      where: { userId: user.id }
-    });
-
-    const shouldBeDefault = existingAccounts.length === 0 ? true : data.isDefault;
-
-    // If the account should be default, unset other default accounts
-    if (shouldBeDefault) {
-      await db.account.updateMany({
-        where: { userId: user.id, isDefault: true },
-        data: { isDefault: false }
+      return tx.account.create({
+        data: {
+          name: data.name,
+          type: data.type,
+          balance: data.balance,
+          userId,
+          isDefault: shouldBeDefault,
+        },
       });
-    }
-
-    const account = await db.account.create({
-      data: {
-        ...data,
-        balance: balanceFloat,
-        userId: user.id,
-        isDefault: shouldBeDefault,
-      },
     });
-
-    const serializedAccount = serializeTransaction(account);
 
     revalidatePath("/dashboard");
-    return { success: true, data: serializedAccount };
+    return { success: true, data: serializeTransaction(account) };
   } catch (error) {
     throw new Error(error.message);
   }
 }
 
 export async function getUserAccounts() {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthoroized");
-
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  try{
-    const accounts = await db.account.findMany({
-      where: { userId: user.id },
+  return withCurrentTenant(async (tx, userId) => {
+    const accounts = await tx.account.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" },
       include: {
         _count: {
@@ -119,32 +99,41 @@ export async function getUserAccounts() {
         },
       },
     });
-
-    const serializedAccounts = accounts.map(serializeTransaction);
-
-    return serializedAccounts;
-  } catch (error) {
-    console.error(error.message);
-  }
+    return accounts.map(serializeTransaction);
+  });
 }
 
+// The dashboard overview needs exactly two things: the handful of most recent
+// transactions per account, and this month's expenses for the category
+// breakdown. It used to load every transaction the user had ever made and ship
+// all of them to the browser to be filtered there.
+const RECENT_TRANSACTION_LIMIT = 100;
+const MONTHLY_TRANSACTION_LIMIT = 2000;
+
 export async function getDashboardData() {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthoroized");
+  return withCurrentTenant(async (tx, userId) => {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
+    const [recent, thisMonth] = await Promise.all([
+      tx.transaction.findMany({
+        where: { userId },
+        orderBy: { date: "desc" },
+        take: RECENT_TRANSACTION_LIMIT,
+      }),
+      tx.transaction.findMany({
+        where: { userId, date: { gte: startOfMonth } },
+        orderBy: { date: "desc" },
+        take: MONTHLY_TRANSACTION_LIMIT,
+      }),
+    ]);
+
+    // The two windows overlap, so de-duplicate before handing them over.
+    const byId = new Map();
+    for (const row of [...recent, ...thisMonth]) byId.set(row.id, row);
+
+    return [...byId.values()]
+      .sort((a, b) => b.date - a.date)
+      .map(serializeTransaction);
   });
-
-  if (!user) {
-    throw new Error("User not found");
-  }
-
-  // Get all user transactions
-  const transactions = await db.transaction.findMany({
-    where: { userId: user.id },
-    orderBy: { date: "desc" },
-  });
-
-  return transactions.map(serializeTransaction);
 }

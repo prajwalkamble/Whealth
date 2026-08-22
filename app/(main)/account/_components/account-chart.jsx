@@ -39,24 +39,25 @@ export function AccountChart ({ transactions }) {
       (t) => new Date(t.date) >= startDate && new Date(t.date) <= endOfDay(now)
     );
 
-    // Group transactions by date
+    // Group transactions by day. The bucket key carries the year so days from
+    // different years stay separate and sort correctly -- "MMM dd" alone parses
+    // to an arbitrary default year, which scrambled the 6M and All Time ranges.
     const grouped = filtered.reduce((acc, transaction) => {
-      const date = format(new Date(transaction.date), "MMM dd");
-      if(!acc[date]) {
-        acc[date] = { date, income: 0, expense: 0 };
+      const day = new Date(transaction.date);
+      const key = format(day, "yyyy-MM-dd");
+      if (!acc[key]) {
+        acc[key] = { key, date: format(day, "MMM dd"), income: 0, expense: 0 };
       }
-      if(transaction.type === "INCOME") {
-        acc[date].income += transaction.amount;
+      if (transaction.type === "INCOME") {
+        acc[key].income += transaction.amount;
       } else {
-        acc[date].expense += transaction.amount;
+        acc[key].expense += transaction.amount;
       }
       return acc;
-    }, {})
+    }, {});
 
     // Convert to array and sort by date
-    return Object.values(grouped).sort(
-      (a, b) => new Date(a.date) - new Date(b.date)
-    );
+    return Object.values(grouped).sort((a, b) => a.key.localeCompare(b.key));
   }, [transactions, dateRange]);
 
   const totals = useMemo(() => {

@@ -30,8 +30,7 @@ const CreateAccountDrawer = ({ children }) => {
   const {
     data: newAccount,
     loading: createAccountLoading,
-    error,
-    fn: createAccountFn
+    fn: createAccountFn,
   } = useFetch(createAccount);
 
   const onSubmit = async (data) => {
@@ -39,25 +38,22 @@ const CreateAccountDrawer = ({ children }) => {
   };
 
   useEffect(() => {
-    if (newAccount && !createAccountLoading) {
+    if (newAccount?.success && !createAccountLoading) {
       toast.success("Account created successfully");
       reset();
       setOpen(false);
     }
-  }, [createAccountLoading, newAccount]);
+  }, [createAccountLoading, newAccount, reset]);
 
-  useEffect(() => {
-    if (error) {
-      toast.error(error.message || "Failed to create account");
-    }
-  }, [error]);
+  // createAccount throws on failure and useFetch raises the toast, so there is
+  // deliberately no error effect here.
 
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>{children}</DrawerTrigger>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>Create New Acocunt</DrawerTitle>
+          <DrawerTitle>Create New Account</DrawerTitle>
         </DrawerHeader>
 
         <div className="px-4 pb-4">

@@ -1,7 +1,6 @@
 "use server";
 
-import { db } from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { withCurrentTenant } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 const serializeTransaction = (obj) => {
@@ -17,112 +16,104 @@ const serializeTransaction = (obj) => {
 
 export async function updateDefaultAccount(accountId) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthoroized");
+    const account = await withCurrentTenant(async (tx, userId) => {
+      const target = await tx.account.findFirst({
+        where: { id: accountId, userId },
+        select: { id: true },
+      });
+      if (!target) throw new Error("Account not found");
 
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
+      await tx.account.updateMany({
+        where: { userId, isDefault: true },
+        data: { isDefault: false },
+      });
 
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    await db.account.updateMany({
-      where: { userId: user.id, isDefault: true },
-      data: { isDefault: false },
-    });
-
-    const account = await db.account.update({
-      where: {
-        id: accountId,
-        userId: user.id,
-      },
-      data: { isDefault: true },
+      return tx.account.update({
+        where: { id: accountId },
+        data: { isDefault: true },
+      });
     });
 
     revalidatePath("/dashboard");
     return { success: true, data: serializeTransaction(account) };
   } catch (error) {
-    return { success: false, error: error.message };
+    // Thrown, not returned: useFetch only populates its `error` state from a
+    // rejection, so a returned {success:false} was invisible to every caller
+    // and the UI reported it as a success.
+    throw new Error(error.message);
   }
 }
 
+// The account page paginates and charts client-side, so it used to pull every
+// transaction on the account into the RSC payload. Bounded here, with the
+// truncation reported rather than hidden.
+// Not exported: a "use server" module may only export async functions.
+const ACCOUNT_TRANSACTION_LIMIT = 500;
+
 export async function getAccountWithTransactions(accountId) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthoroized");
-
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
-
-  if (!user) throw new Error("User not found");
-
-  const account = await db.account.findUnique({
-    where: { id: accountId, userId: user.id },
-    include: {
-      transactions: {
-        orderBy: { date: "desc" },
+  return withCurrentTenant(async (tx, userId) => {
+    const account = await tx.account.findFirst({
+      where: { id: accountId, userId },
+      include: {
+        transactions: {
+          orderBy: { date: "desc" },
+          take: ACCOUNT_TRANSACTION_LIMIT,
+        },
+        _count: {
+          select: { transactions: true },
+        },
       },
-      _count: {
-        select: { transactions: true },
-      },
-    },
+    });
+
+    if (!account) return null;
+
+    return {
+      ...serializeTransaction(account),
+      transactions: account.transactions.map(serializeTransaction),
+      transactionLimit: ACCOUNT_TRANSACTION_LIMIT,
+      hasMoreTransactions:
+        account._count.transactions > account.transactions.length,
+    };
   });
-
-  if(!account) return null;
-
-  return {
-    ...serializeTransaction(account),
-    transactions: account.transactions.map(serializeTransaction),
-  };
 }
 
 export async function bulkDeleteTransactions(transactionIds) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthoroized");
-
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    const transactions = await db.transaction.findMany({
-      where: {
-        id: {in: transactionIds},
-        userId: user.id,
-      },
-    });
-
-    const accountBalanceChanges = transactions.reduce((acc, transaction) => {
-      const change =
-        transaction.type === "EXPENSE"
-          ? transaction.amount
-          : -transaction.amount;
-
-          acc[transaction.accountId] = (acc[transaction.accountId] || 0) + change;
-          return acc;
-    }, {});
-
-    // Delete transactions and update account balances in a transaction
-    await db.$transaction(async (tx) => {
-      // Delete transactions
-      await tx.transaction.deleteMany({
+    const deletedCount = await withCurrentTenant(async (tx, userId) => {
+      const transactions = await tx.transaction.findMany({
         where: {
           id: { in: transactionIds },
-          userId: user.id,
+          userId,
+        },
+        select: { id: true, type: true, amount: true, accountId: true },
+      });
+
+      if (transactions.length === 0) return 0;
+
+      // Deleting an expense returns money to the account and deleting income
+      // takes it back out. amount is a Prisma Decimal, whose valueOf() is a
+      // string -- call toNumber() or the accumulator concatenates instead of
+      // adding.
+      const accountBalanceChanges = transactions.reduce((acc, transaction) => {
+        const amount = transaction.amount.toNumber();
+        const change = transaction.type === "EXPENSE" ? amount : -amount;
+
+        acc[transaction.accountId] = (acc[transaction.accountId] || 0) + change;
+        return acc;
+      }, {});
+
+      await tx.transaction.deleteMany({
+        where: {
+          id: { in: transactions.map((t) => t.id) },
+          userId,
         },
       });
 
       for (const [accountId, balanceChange] of Object.entries(
         accountBalanceChanges
       )) {
-        await tx.account.update({
-          where: { id: accountId },
+        await tx.account.updateMany({
+          where: { id: accountId, userId },
           data: {
             balance: {
               increment: balanceChange,
@@ -130,13 +121,15 @@ export async function bulkDeleteTransactions(transactionIds) {
           },
         });
       }
+
+      return transactions.length;
     });
 
     revalidatePath("/dashboard");
-    revalidatePath("/account/[id]");
+    revalidatePath("/account/[id]", "page");
 
-    return { success: true };
+    return { success: true, data: { deleted: deletedCount } };
   } catch (error) {
-    return { success: false, error: error.message };
+    throw new Error(error.message);
   }
 }

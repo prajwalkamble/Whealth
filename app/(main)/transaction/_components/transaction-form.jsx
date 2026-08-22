@@ -44,7 +44,7 @@ export function AddTransactionForm ({
     ? {
         type: initialData.type,
         amount: initialData.amount.toString(),
-        description: initialData.description,
+        description: initialData.description ?? "",
         accountId: initialData.accountId,
         category: initialData.category,
         date: new Date(initialData.date),
@@ -111,6 +111,7 @@ export function AddTransactionForm ({
   const type = watch("type");
   const isRecurring = watch("isRecurring");
   const date = watch("date");
+  const category = watch("category");
 
   const filteredCategories = categories.filter(
     (category) => category.type === type
@@ -125,7 +126,14 @@ export function AddTransactionForm ({
       <div className="space-y-2">
         <label className="text-sm font-medium">Type</label>
         <Select
-          onValueChange={(value) => setValue("type", value)}
+          onValueChange={(value) => {
+            setValue("type", value);
+            // Categories are type-specific. Keeping the old selection let an
+            // expense category ride along on an income transaction.
+            if (getValues("category")) {
+              setValue("category", "", { shouldValidate: false });
+            }
+          }}
           defaultValue={type}
         >
           <SelectTrigger>
@@ -154,7 +162,7 @@ export function AddTransactionForm ({
           />
 
           {errors.amount && (
-            <p className="text-sm text-red-500">{errors.type.message}</p>
+            <p className="text-sm text-red-500">{errors.amount.message}</p>
           )}
         </div>
 
@@ -193,9 +201,12 @@ export function AddTransactionForm ({
       {/* Category */}
       <div className="space-y-2">
         <label className="text-sm font-medium">Category</label>
+        {/* Controlled, not defaultValue: Radix reads defaultValue once, so the
+            trigger kept showing the old label after a receipt scan or a type
+            change had already rewritten the form value underneath it. */}
         <Select
           onValueChange={(value) => setValue("category", value)}
-          defaultValue={getValues("category")}
+          value={category ?? ""}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select category" />
@@ -274,7 +285,7 @@ export function AddTransactionForm ({
       {/* Recurring Interval */}
       {isRecurring && (
         <div className="space-y-2">
-          <label className="text-sm font-medium">Category</label>
+          <label className="text-sm font-medium">Recurring Interval</label>
           <Select
             onValueChange={(value) => setValue("recurringInterval", value)}
             defaultValue={getValues("recurringInterval")}

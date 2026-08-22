@@ -1,80 +1,92 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { db } from "@/lib/prisma";
+import { withCurrentTenant } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import aj from "@/lib/arcjet";
 import { request } from "@arcjet/next";
+import {
+  transactionInputSchema,
+  parseOrThrow,
+} from "@/app/lib/schema";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const serializeAmount = (obj) => ({
   ...obj,
   amount: obj.amount.toNumber(),
+  ...(obj.account
+    ? { account: { ...obj.account, balance: obj.account.balance.toNumber() } }
+    : {}),
+});
+
+// Arcjet talks to the network, so it runs before the tenant transaction opens
+// rather than holding a database connection for the round trip.
+async function enforceRateLimit(clerkUserId) {
+  const req = await request();
+  const decision = await aj.protect(req, { userId: clerkUserId, requested: 1 });
+
+  if (!decision.isDenied()) return;
+
+  if (decision.reason.isRateLimit()) {
+    const { remaining, reset } = decision.reason;
+    console.error({
+      code: "RATE_LIMIT_EXCEEDED",
+      details: { remaining, resetInSeconds: reset },
+    });
+    throw new Error("Too many requests. Please try again later.");
+  }
+
+  throw new Error("Request blocked");
+}
+
+async function requireClerkUserId() {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+  return userId;
+}
+
+// The signed change a transaction applies to its account balance.
+const balanceEffect = (type, amount) =>
+  type === "EXPENSE" ? -Number(amount) : Number(amount);
+
+// The columns a client is allowed to set. Spreading the validated payload
+// straight into Prisma would still carry whatever zod chose to keep, so the
+// writable surface is named explicitly here.
+const transactionColumns = (data) => ({
+  type: data.type,
+  amount: data.amount,
+  description: data.description ?? null,
+  date: data.date,
+  category: data.category,
+  isRecurring: data.isRecurring,
+  recurringInterval: data.isRecurring ? data.recurringInterval : null,
+  accountId: data.accountId,
 });
 
 // Create Transaction
-export async function createTransaction(data) {
+export async function createTransaction(rawData) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const clerkUserId = await requireClerkUserId();
+    await enforceRateLimit(clerkUserId);
 
-    // Get request data for ArcJet
-    const req = await request();
+    // A server action is a public endpoint, so the payload is re-validated here
+    // rather than trusted from the browser form. Parsing also drops unknown
+    // keys, so a crafted body cannot smuggle userId/id/status into the create.
+    const data = parseOrThrow(transactionInputSchema, rawData);
 
-    // Check rate limit
-    const decision = await aj.protect(req, {
-      userId,
-      requested: 1, // Specify how many tokens to consume
-    });
+    const transaction = await withCurrentTenant(async (tx, userId) => {
+      const account = await tx.account.findFirst({
+        where: { id: data.accountId, userId },
+        select: { id: true },
+      });
+      if (!account) throw new Error("Account not found");
 
-    if (decision.isDenied()) {
-      if (decision.reason.isRateLimit()) {
-        const { remaining, reset } = decision.reason;
-        console.error({
-          code: "RATE_LIMIT_EXCEEDED",
-          details: {
-            remaining,
-            resetInSeconds: reset,
-          },
-        });
-
-        throw new Error("Too many requests. Please try again later.");
-      }
-
-      throw new Error("Request blocked");
-    }
-
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    const account = await db.account.findUnique({
-      where: {
-        id: data.accountId,
-        userId: user.id,
-      },
-    });
-
-    if (!account) {
-      throw new Error("Account not found");
-    }
-
-    // Calculate new balance
-    const balanceChange = data.type === "EXPENSE" ? -data.amount : data.amount;
-    const newBalance = account.balance.toNumber() + balanceChange;
-
-    // Create transaction and update account balance
-    const transaction = await db.$transaction(async (tx) => {
       const newTransaction = await tx.transaction.create({
         data: {
-          ...data,
-          userId: user.id,
+          ...transactionColumns(data),
+          userId,
           nextRecurringDate:
             data.isRecurring && data.recurringInterval
               ? calculateNextRecurringDate(data.date, data.recurringInterval)
@@ -82,9 +94,11 @@ export async function createTransaction(data) {
         },
       });
 
+      // increment, not an absolute write computed from an earlier read, so
+      // concurrent transactions on the same account cannot lose an update.
       await tx.account.update({
         where: { id: data.accountId },
-        data: { balance: newBalance },
+        data: { balance: { increment: balanceEffect(data.type, data.amount) } },
       });
 
       return newTransaction;
@@ -100,93 +114,79 @@ export async function createTransaction(data) {
 }
 
 export async function getTransaction(id) {
-  const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
+  return withCurrentTenant(async (tx, userId) => {
+    const transaction = await tx.transaction.findFirst({
+      where: { id, userId },
+    });
 
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
+    if (!transaction) throw new Error("Transaction not found");
+
+    return serializeAmount(transaction);
   });
-
-  if (!user) throw new Error("User not found");
-
-  const transaction = await db.transaction.findUnique({
-    where: {
-      id,
-      userId: user.id,
-    },
-  });
-
-  if (!transaction) throw new Error("Transaction not found");
-
-  return serializeAmount(transaction);
 }
 
-export async function updateTransaction(id, data) {
+export async function updateTransaction(id, rawData) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const data = parseOrThrow(transactionInputSchema, rawData);
 
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
+    // withCurrentTenant rejects an unauthenticated caller before any query runs.
+    const { transaction, previousAccountId } = await withCurrentTenant(
+      async (tx, userId) => {
+        const original = await tx.transaction.findFirst({
+          where: { id, userId },
+        });
+        if (!original) throw new Error("Transaction not found");
 
-    if (!user) throw new Error("User not found");
+        const targetAccount = await tx.account.findFirst({
+          where: { id: data.accountId, userId },
+          select: { id: true },
+        });
+        if (!targetAccount) throw new Error("Account not found");
 
-    // Get original transaction to calculate balance change
-    const originalTransaction = await db.transaction.findUnique({
-      where: {
-        id,
-        userId: user.id,
-      },
-      include: {
-        account: true,
-      },
-    });
+        const oldEffect = balanceEffect(
+          original.type,
+          original.amount.toNumber()
+        );
+        const newEffect = balanceEffect(data.type, data.amount);
 
-    if (!originalTransaction) throw new Error("Transaction not found");
-
-    // Calculate balance changes
-    const oldBalanceChange =
-      originalTransaction.type === "EXPENSE"
-        ? -originalTransaction.amount.toNumber()
-        : originalTransaction.amount.toNumber();
-
-    const newBalanceChange =
-      data.type === "EXPENSE" ? -data.amount : data.amount;
-
-    const netBalanceChange = newBalanceChange - oldBalanceChange;
-
-    // Update transaction and account balance in a transaction
-    const transaction = await db.$transaction(async (tx) => {
-      const updated = await tx.transaction.update({
-        where: {
-          id,
-          userId: user.id,
-        },
-        data: {
-          ...data,
-          nextRecurringDate:
-            data.isRecurring && data.recurringInterval
-              ? calculateNextRecurringDate(data.date, data.recurringInterval)
-              : null,
-        },
-      });
-
-      // Update account balance
-      await tx.account.update({
-        where: { id: data.accountId },
-        data: {
-          balance: {
-            increment: netBalanceChange,
+        const updated = await tx.transaction.update({
+          where: { id: original.id },
+          data: {
+            ...transactionColumns(data),
+            nextRecurringDate:
+              data.isRecurring && data.recurringInterval
+                ? calculateNextRecurringDate(data.date, data.recurringInterval)
+                : null,
           },
-        },
-      });
+        });
 
-      return updated;
-    });
+        if (original.accountId === data.accountId) {
+          await tx.account.update({
+            where: { id: data.accountId },
+            data: { balance: { increment: newEffect - oldEffect } },
+          });
+        } else {
+          // Moved to a different account: back the old effect out of the
+          // account that is losing it before applying it to the new one.
+          await tx.account.updateMany({
+            where: { id: original.accountId, userId },
+            data: { balance: { increment: -oldEffect } },
+          });
+          await tx.account.update({
+            where: { id: data.accountId },
+            data: { balance: { increment: newEffect } },
+          });
+        }
+
+        return { transaction: updated, previousAccountId: original.accountId };
+      }
+    );
 
     revalidatePath("/dashboard");
     revalidatePath(`/account/${data.accountId}`);
+    if (previousAccountId !== data.accountId) {
+      revalidatePath(`/account/${previousAccountId}`);
+    }
 
     return { success: true, data: serializeAmount(transaction) };
   } catch (error) {
@@ -197,28 +197,22 @@ export async function updateTransaction(id, data) {
 // Get User Transactions
 export async function getUserTransactions(query = {}) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const transactions = await withCurrentTenant(async (tx, userId) => {
+      const rows = await tx.transaction.findMany({
+        where: {
+          userId,
+          ...query,
+        },
+        include: {
+          account: true,
+        },
+        orderBy: {
+          date: "desc",
+        },
+      });
 
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    const transactions = await db.transaction.findMany({
-      where: {
-        userId: user.id,
-        ...query,
-      },
-      include: {
-        account: true,
-      },
-      orderBy: {
-        date: "desc",
-      },
+      // Decimal instances cannot cross the server/client boundary.
+      return rows.map(serializeAmount);
     });
 
     return { success: true, data: transactions };
@@ -229,6 +223,15 @@ export async function getUserTransactions(query = {}) {
 
 // Scan Receipt
 export async function scanReceipt(file) {
+  // Guarded like every other action: this one spends Gemini quota, so it must
+  // not be reachable without a session or past the rate limit.
+  const clerkUserId = await requireClerkUserId();
+  await enforceRateLimit(clerkUserId);
+
+  if (!file || typeof file.arrayBuffer !== "function") {
+    throw new Error("No receipt image provided");
+  }
+
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
@@ -271,26 +274,39 @@ export async function scanReceipt(file) {
     const text = response.text();
     const cleanedText = text.replace(/```(?:json)?\n?/g, "").trim();
 
+    let data;
     try {
-      const data = JSON.parse(cleanedText);
-      return {
-        amount: parseFloat(data.amount),
-        date: new Date(data.date),
-        description: data.description,
-        category: data.category,
-        merchantName: data.merchantName,
-      };
+      data = JSON.parse(cleanedText);
     } catch (parseError) {
       console.error("Error parsing JSON response:", parseError);
       throw new Error("Invalid response format from Gemini");
     }
+
+    // The prompt tells the model to return {} for a non-receipt, so an absent
+    // or unparseable amount means "this wasn't a receipt", not a crash.
+    const amount = Number.parseFloat(data.amount);
+    if (!Number.isFinite(amount)) {
+      throw new Error("That image doesn't look like a receipt");
+    }
+
+    const parsedDate = new Date(data.date);
+
+    return {
+      amount,
+      date: Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
+      description: data.description ?? "",
+      category: data.category ?? "",
+      merchantName: data.merchantName ?? "",
+    };
   } catch (error) {
     console.error("Error scanning receipt:", error);
-    throw new Error("Failed to scan receipt");
+    throw new Error(error.message || "Failed to scan receipt");
   }
 }
 
-// Helper function to calculate next recurring date
+// Helper function to calculate next recurring date.
+// The intervals here must stay in step with the RecurringInterval enum in
+// prisma/schema.prisma -- anything else cannot be persisted.
 function calculateNextRecurringDate(startDate, interval) {
   const date = new Date(startDate);
 
@@ -303,12 +319,6 @@ function calculateNextRecurringDate(startDate, interval) {
       break;
     case "MONTHLY":
       date.setMonth(date.getMonth() + 1);
-      break;
-    case "QUARTERLY":
-      date.setMonth(date.getMonth() + 3);
-      break;
-    case "HALFYEARLY":
-      date.setMonth(date.getMonth() + 6);
       break;
     case "YEARLY":
       date.setFullYear(date.getFullYear() + 1);

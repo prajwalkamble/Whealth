@@ -6,7 +6,8 @@ import { notFound } from 'next/navigation';
 import { AccountChart } from '../_components/account-chart';
 
 export default async function AccountsPage({ params }) {
-  const accountData = await getAccountWithTransactions(params.id);
+  const { id } = await params;
+  const accountData = await getAccountWithTransactions(id);
 
   if(!accountData) {
     notFound();
@@ -34,6 +35,11 @@ export default async function AccountsPage({ params }) {
             <p className="text-sm text-muted-foreground">
               {account._count.transactions} Transactions
             </p>
+            {account.hasMoreTransactions && (
+              <p className="text-xs text-muted-foreground">
+                Showing the most recent {account.transactionLimit}
+              </p>
+            )}
           </div>
         </div>
 
