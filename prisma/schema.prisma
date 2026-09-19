@@ -23,6 +23,7 @@ model User {
   transactions Transaction[]
   accounts     Account[]
   budgets      Budget[]
+  rating       Rating?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -109,4 +110,24 @@ model Budget {
 
   @@index([userId])
   @@map("budgets")
+}
+
+// One rating per user, which they can change. Averaged for the landing page.
+model Rating {
+  id        String   @id @default(uuid())
+  score     Int // 1-5, enforced by a CHECK constraint in the migration
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ratings")
+}
+
+// One row per 5-minute slot in which the uptime heartbeat succeeded. A slot
+// with no row is downtime: the app or the database could not record it.
+model UptimeCheck {
+  slot DateTime @id
+
+  @@map("uptime_checks")
 }

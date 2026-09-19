@@ -2,7 +2,8 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { withCurrentTenant } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { LANDING_STATS_TAG } from "@/lib/stats";
 import { generateContent } from "@/lib/ai/gemini";
 import aj from "@/lib/arcjet";
 import { request } from "@arcjet/next";
@@ -104,6 +105,7 @@ export async function createTransaction(rawData) {
 
     revalidatePath("/dashboard");
     revalidatePath(`/account/${transaction.accountId}`);
+    revalidateTag(LANDING_STATS_TAG);
 
     return { success: true, data: serializeAmount(transaction) };
   } catch (error) {

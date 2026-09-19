@@ -1,7 +1,8 @@
 "use server";
 
 import { withCurrentTenant } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { LANDING_STATS_TAG } from "@/lib/stats";
 
 const serializeTransaction = (obj) => {
   const serialized = { ...obj };
@@ -127,6 +128,7 @@ export async function bulkDeleteTransactions(transactionIds) {
 
     revalidatePath("/dashboard");
     revalidatePath("/account/[id]", "page");
+    revalidateTag(LANDING_STATS_TAG);
 
     return { success: true, data: { deleted: deletedCount } };
   } catch (error) {

@@ -30,7 +30,26 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO whealth_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO whealth_app;
-ALTER ROLE whealth_app NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE;
+-- Only a superuser may name SUPERUSER or BYPASSRLS in ALTER ROLE -- even to
+-- switch them off -- and managed Postgres (Supabase, Neon, RDS) runs
+-- migrations as a non-superuser owner, so the unconditional ALTER that used to
+-- be here aborted the whole migration there. A role created just above already
+-- has all four attributes off, so act only when one is on: refuse outright for
+-- the two only a superuser can clear, and clear the other two.
+DO $$
+DECLARE
+  app_role pg_roles%ROWTYPE;
+BEGIN
+  SELECT * INTO app_role FROM pg_roles WHERE rolname = 'whealth_app';
+
+  IF app_role.rolsuper OR app_role.rolbypassrls THEN
+    RAISE EXCEPTION 'whealth_app is SUPERUSER or BYPASSRLS, which defeats row-level security. A superuser must run: ALTER ROLE whealth_app NOSUPERUSER NOBYPASSRLS;';
+  END IF;
+
+  IF app_role.rolcreatedb OR app_role.rolcreaterole THEN
+    ALTER ROLE whealth_app NOCREATEDB NOCREATEROLE;
+  END IF;
+END$$;
 
 -- 1b. Job-runner role. The cron functions in lib/inngest/functions.js must
 --     enumerate every tenant. Relying on the connecting role happening to be a

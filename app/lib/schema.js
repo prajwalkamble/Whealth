@@ -82,6 +82,12 @@ export const transactionInputSchema = z
 
 export const budgetInputSchema = z.coerce.number().pipe(positiveAmount);
 
+export const ratingInputSchema = z.coerce
+  .number({ invalid_type_error: "Rating must be a number" })
+  .int("Rating must be a whole number of stars")
+  .min(1, "Rating must be between 1 and 5")
+  .max(5, "Rating must be between 1 and 5");
+
 // Turns a ZodError into the single-line message the client toasts.
 export function parseOrThrow(schema, value) {
   const result = schema.safeParse(value);

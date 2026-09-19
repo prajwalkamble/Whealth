@@ -1,29 +1,84 @@
 import HeroSection from "@/components/hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { featuresData, howItWorksData, statsData, testimonialsData } from "@/data/landing";
+import { featuresData, howItWorksData, testimonialsData } from "@/data/landing";
+import { getLandingStats } from "@/lib/stats";
 import Image from "next/image";
 import Link from "next/link";
 
-export default function Home() {
+const compactNumber = new Intl.NumberFormat("en-IN", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+// Real values only. Uptime and rating have no value until there is data behind
+// them (a completed uptime slot, a first rating), and are left out until then
+// rather than shown as a made-up number.
+function buildStats(stats) {
+  if (!stats) return [];
+
+  const list = [
+    { label: "Active Users", value: compactNumber.format(stats.activeUsers) },
+    {
+      label: "Transactions Tracked",
+      value: compactNumber.format(stats.transactions),
+    },
+  ];
+
+  if (stats.uptime !== null) {
+    // Floored, so 99.996% is never rounded up to a perfect 100%.
+    const uptime = Math.floor(stats.uptime * 100) / 100;
+    list.push({ label: "Uptime", value: `${uptime}%` });
+  }
+
+  if (stats.rating !== null) {
+    list.push({ label: "User Rating", value: `${stats.rating.toFixed(1)}/5` });
+  }
+
+  return list;
+}
+
+// Literal class names so Tailwind generates them; the column count follows how
+// many stats are shown.
+const STAT_COLUMNS = {
+  1: "md:grid-cols-1",
+  2: "md:grid-cols-2",
+  3: "md:grid-cols-3",
+  4: "md:grid-cols-4",
+};
+
+export default async function Home() {
+  // The landing page must render even when the database is unreachable, so a
+  // failed lookup hides the stats instead of taking the page down with it.
+  const statsData = buildStats(
+    await getLandingStats().catch((error) => {
+      console.error("Failed to load landing stats:", error);
+      return null;
+    })
+  );
+
   return (
     <div className="mt-40">
       <HeroSection />
 
-      <section className="py-20 bg-blue-50">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {statsData.map((statsData, index) => (
-              <div key={index} className="text-center">
-                <div className="text-4xl font-bold text-blue-600 mb-2">
-                  {statsData.value}
+      {statsData.length > 0 && (
+        <section className="py-20 bg-blue-50">
+          <div className="container mx-auto px-4">
+            <div
+              className={`grid grid-cols-2 gap-8 ${STAT_COLUMNS[statsData.length]}`}
+            >
+              {statsData.map((stat) => (
+                <div key={stat.label} className="text-center">
+                  <div className="text-4xl font-bold text-blue-600 mb-2">
+                    {stat.value}
+                  </div>
+                  <div className="text-gray-600">{stat.label}</div>
                 </div>
-                <div className="text-gray-600">{statsData.label}</div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="py-20">
         <div className="container mx-auto px-4">

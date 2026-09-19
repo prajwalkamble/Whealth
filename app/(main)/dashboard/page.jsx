@@ -7,6 +7,8 @@ import AccountCard from './_components/account-card';
 import { getCurrentBudget } from '@/actions/budget';
 import BudgetProgress from './_components/budget-progress';
 import DashboardOverview from './_components/transaction-overview';
+import { getMyRating } from '@/actions/rating';
+import RatingCard from './_components/rating-card';
 
 async function DashboardPage() {
   const accounts = await getUserAccounts();
@@ -19,6 +21,11 @@ async function DashboardPage() {
   }
 
   const transactions = await getDashboardData();
+
+  // Only users who have created an account can rate; submitRating enforces
+  // the same rule on the server.
+  const canRate = accounts.length > 0;
+  const myRating = canRate ? await getMyRating() : null;
 
   return (
     <div className="space-y-8">
@@ -52,6 +59,8 @@ async function DashboardPage() {
           <AccountCard key={account.id} account={account} />
         ))}
       </div>
+
+      {canRate && <RatingCard initialRating={myRating} />}
     </div>
   );
 };

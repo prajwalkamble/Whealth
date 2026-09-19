@@ -14,6 +14,8 @@ vi.mock("@clerk/nextjs/server", () => ({
 vi.mock("next/cache", () => ({
   revalidatePath: () => {},
   revalidateTag: () => {},
+  // lib/stats wraps its query in unstable_cache at import time.
+  unstable_cache: (fn) => fn,
 }));
 
 vi.mock("@arcjet/next", () => ({
@@ -48,6 +50,10 @@ const {
   getUserTransactions,
 } = await import("@/actions/transaction");
 const { getCurrentBudget, updateBudget } = await import("@/actions/budget");
+const { getMyRating, submitRating } = await import("@/actions/rating");
+const { getLandingStats, uptimeSlot } = await import("@/lib/stats");
+const { recordUptime } = await import("@/lib/inngest/functions");
+const { db: appDb, withTenant } = await import("@/lib/prisma");
 
 // Fixtures are created with an admin connection that bypasses RLS.
 const admin = new PrismaClient({ datasourceUrl: process.env.DIRECT_URL });
@@ -55,6 +61,8 @@ const admin = new PrismaClient({ datasourceUrl: process.env.DIRECT_URL });
 const TENANTS = {
   alice: { clerkUserId: "clerk_it_alice", email: "it-alice@example.test" },
   bob: { clerkUserId: "clerk_it_bob", email: "it-bob@example.test" },
+  // Signed up but never created an account: not an "active" user.
+  carol: { clerkUserId: "clerk_it_carol", email: "it-carol@example.test" },
 };
 
 const asTenant = (name) => {
@@ -602,5 +610,97 @@ describe("Dashboard data", () => {
     const rows = await getDashboardData();
     const ids = new Set(rows.map((r) => r.userId));
     expect([...ids]).toEqual([TENANTS.alice.id]);
+  });
+});
+
+describe("Ratings", () => {
+  it("refuses a rating from a user who has not created an account", async () => {
+    asTenant("carol");
+    await expect(submitRating(5)).rejects.toThrow(/Create an account/);
+    expect(await getMyRating()).toBeNull();
+  });
+
+  it.each([0, 6, 3.5, "abc"])("rejects %s stars", async (score) => {
+    asTenant("alice");
+    await expect(submitRating(score)).rejects.toThrow(
+      /between 1 and 5|whole number|must be a number/
+    );
+  });
+
+  it("stores one rating per user and lets them change it", async () => {
+    asTenant("alice");
+    expect(await getMyRating()).toBeNull();
+
+    expect((await submitRating(4)).data.score).toBe(4);
+    expect(await getMyRating()).toBe(4);
+
+    expect((await submitRating(5)).data.score).toBe(5);
+    expect(await getMyRating()).toBe(5);
+
+    const rows = await admin.rating.findMany({
+      where: { userId: TENANTS.alice.id },
+    });
+    expect(rows.map((r) => r.score)).toEqual([5]);
+  });
+
+  it("isolates ratings per tenant under RLS", async () => {
+    asTenant("bob");
+    await submitRating(2);
+
+    const visibleToAlice = await withTenant(TENANTS.alice.id, (tx) =>
+      tx.rating.findMany({ select: { userId: true } })
+    );
+    expect(visibleToAlice.map((r) => r.userId)).toEqual([TENANTS.alice.id]);
+  });
+
+  it("enforces the 1-5 range in the database as well", async () => {
+    await expect(
+      admin.rating.update({
+        where: { userId: TENANTS.alice.id },
+        data: { score: 9 },
+      })
+    ).rejects.toThrow(/ratings_score_range/);
+  });
+});
+
+describe("Landing stats", () => {
+  it("counts a user as active only once they create an account", async () => {
+    const before = await getLandingStats();
+
+    asTenant("carol");
+    await createAccount({
+      name: "Carol Checking",
+      type: "CURRENT",
+      balance: "0",
+      isDefault: true,
+    });
+
+    const after = await getLandingStats();
+    expect(after.activeUsers).toBe(before.activeUsers + 1);
+  });
+
+  it("reports the true transaction count and rating average", async () => {
+    const stats = await getLandingStats();
+    const ratings = await admin.rating.aggregate({ _avg: { score: true } });
+
+    expect(stats.transactions).toBe(await admin.transaction.count());
+    expect(stats.rating).toBeCloseTo(ratings._avg.score, 10);
+  });
+
+  it("records one uptime slot per 5-minute window, idempotently", async () => {
+    const slot = uptimeSlot(new Date());
+    const existed = await admin.uptimeCheck.findUnique({ where: { slot } });
+
+    await recordUptime["fn"]({});
+    await recordUptime["fn"]({});
+
+    expect(await admin.uptimeCheck.count({ where: { slot } })).toBe(1);
+    if (!existed) await admin.uptimeCheck.delete({ where: { slot } });
+  });
+
+  it("gives the request-path role no access to the uptime table", async () => {
+    await expect(
+      appDb.$queryRaw`SELECT count(*) FROM uptime_checks`
+    ).rejects.toThrow(/permission denied/);
   });
 });

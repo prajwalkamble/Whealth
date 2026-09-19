@@ -3,7 +3,8 @@
 import aj from "@/lib/arcjet";
 import { request } from "@arcjet/next";
 import { auth } from "@clerk/nextjs/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { LANDING_STATS_TAG } from "@/lib/stats";
 import { withCurrentTenant } from "@/lib/prisma";
 import { accountInputSchema, parseOrThrow } from "@/app/lib/schema";
 
@@ -80,6 +81,8 @@ export async function createAccount(rawData) {
     });
 
     revalidatePath("/dashboard");
+    // A first account turns a signed-up user into an active one.
+    revalidateTag(LANDING_STATS_TAG);
     return { success: true, data: serializeTransaction(account) };
   } catch (error) {
     throw new Error(error.message);
