@@ -3,15 +3,13 @@
 import { auth } from "@clerk/nextjs/server";
 import { withCurrentTenant } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { generateContent } from "@/lib/ai/gemini";
 import aj from "@/lib/arcjet";
 import { request } from "@arcjet/next";
 import {
   transactionInputSchema,
   parseOrThrow,
 } from "@/app/lib/schema";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const serializeAmount = (obj) => ({
   ...obj,
@@ -233,8 +231,6 @@ export async function scanReceipt(file) {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
     // Convert File to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     // Convert ArrayBuffer to Base64
@@ -257,10 +253,10 @@ export async function scanReceipt(file) {
         "category": "string"
       }
 
-      If its not a recipt, return an empty object
+      If its not a receipt, return an empty object
     `;
 
-    const result = await model.generateContent([
+    const text = await generateContent([
       {
         inlineData: {
           data: base64String,
@@ -269,9 +265,6 @@ export async function scanReceipt(file) {
       },
       prompt,
     ]);
-
-    const response = await result.response;
-    const text = response.text();
     const cleanedText = text.replace(/```(?:json)?\n?/g, "").trim();
 
     let data;

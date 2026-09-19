@@ -1,5 +1,17 @@
 import { Resend } from "resend";
 
+// Resend's shared test sender only delivers to the address that owns the
+// Resend account; every other recipient is rejected. Real users need a sender
+// on a domain verified in Resend, e.g. "Whealth <reports@yourdomain.com>".
+const TEST_SENDER = "Whealth <onboarding@resend.dev>";
+const FROM = process.env.RESEND_FROM_EMAIL || TEST_SENDER;
+
+if (FROM === TEST_SENDER && process.env.NODE_ENV === "production") {
+  console.warn(
+    "RESEND_FROM_EMAIL is not set: emails will only reach the Resend account owner."
+  );
+}
+
 export async function sendEmail({ to, subject, react }) {
   const resend = new Resend(process.env.RESEND_API_KEY || "");
 
@@ -8,7 +20,7 @@ export async function sendEmail({ to, subject, react }) {
     // throwing, so a rejected send used to come back as {success:true} and the
     // budget-alert and monthly-report jobs never knew the mail was dropped.
     const { data, error } = await resend.emails.send({
-      from: "Whealth <onboarding@resend.dev>",
+      from: FROM,
       to,
       subject,
       react,
