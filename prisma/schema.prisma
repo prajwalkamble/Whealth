@@ -17,7 +17,9 @@ datasource db {
 model User {
   id           String        @id @default(uuid())
   clerkUserId  String        @unique // clerk user id
-  email        String        @unique
+  // Optional: Clerk allows sign-in without an email address (phone, some
+  // OAuth providers). Emails are simply not sent to users without one.
+  email        String?       @unique
   name         String
   imageUrl     String
   transactions Transaction[]

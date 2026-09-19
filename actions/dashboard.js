@@ -1,8 +1,9 @@
 "use server";
 
-import aj from "@/lib/arcjet";
-import { request } from "@arcjet/next";
-import { auth } from "@clerk/nextjs/server";
+import { enforceRateLimit } from "@/lib/arcjet";
+import { runAction } from "@/lib/action-error";
+import { requireClerkUserId } from "@/lib/session";
+import { monthBounds } from "@/lib/time";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { LANDING_STATS_TAG } from "@/lib/stats";
 import { withCurrentTenant } from "@/lib/prisma";
@@ -20,42 +21,22 @@ const serializeTransaction = (obj) => {
 };
 
 export async function createAccount(rawData) {
-  try {
-    const { userId: clerkUserId } = await auth();
-    if (!clerkUserId) throw new Error("Unauthorized");
+  return runAction(async () => {
+    const clerkUserId = await requireClerkUserId();
 
     // Re-validated server-side: the form schema only ever ran in the browser.
     // Parsing also drops unknown keys, so the create below cannot be fed extra
     // columns such as id or userId.
     const data = parseOrThrow(accountInputSchema, rawData);
 
-    // Get request data for Arcjet
-    const req = await request();
-
-    //Check rate limit
-    const decision = await aj.protect(req, {
-      userId: clerkUserId,
-      requested: 1, // Specify how many tokens to consume
-    });
-
-    if (decision.isDenied()) {
-      if (decision.reason.isRateLimit()) {
-        const { remaining, reset } = decision.reason;
-        console.error({
-          code: "RATE_LIMIT_EXCEEDED",
-          details: {
-            remaining,
-            resetInSeconds: reset,
-          },
-        });
-
-        throw new Error("Too many requests. Please try again later.");
-      }
-
-      throw new Error("Request blocked");
-    }
+    await enforceRateLimit("account", clerkUserId);
 
     const account = await withCurrentTenant(async (tx, userId) => {
+      // Two first-account requests in flight at once both counted zero
+      // accounts and both became the default. Holding the user's row lock
+      // makes the second wait and see the first.
+      await tx.$executeRaw`SELECT 1 FROM users WHERE id = ${userId} FOR UPDATE`;
+
       // Check if this is the user's first account
       const existingAccounts = await tx.account.count({ where: { userId } });
 
@@ -84,9 +65,7 @@ export async function createAccount(rawData) {
     // A first account turns a signed-up user into an active one.
     revalidateTag(LANDING_STATS_TAG);
     return { success: true, data: serializeTransaction(account) };
-  } catch (error) {
-    throw new Error(error.message);
-  }
+  });
 }
 
 export async function getUserAccounts() {
@@ -115,8 +94,8 @@ const MONTHLY_TRANSACTION_LIMIT = 2000;
 
 export async function getDashboardData() {
   return withCurrentTenant(async (tx, userId) => {
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    // This month on the app's calendar, matching the budget and the reports.
+    const { startOfMonth } = monthBounds();
 
     const [recent, thisMonth] = await Promise.all([
       tx.transaction.findMany({

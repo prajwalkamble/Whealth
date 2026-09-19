@@ -5,10 +5,16 @@ import { PrismaClient } from "@prisma/client";
 let currentClerkId = null;
 // Set by a test to make the rate limiter deny the next call.
 let rateLimitDenied = false;
+// The Clerk profile currentUser() returns, and how often checkUser asked.
+let currentClerkProfile = null;
+let currentUserCalls = 0;
 
 vi.mock("@clerk/nextjs/server", () => ({
   auth: async () => ({ userId: currentClerkId }),
-  currentUser: async () => null,
+  currentUser: async () => {
+    currentUserCalls++;
+    return currentClerkProfile;
+  },
 }));
 
 vi.mock("next/cache", () => ({
@@ -26,14 +32,26 @@ vi.mock("@arcjet/next", () => ({
   detectBot: () => ({}),
 }));
 
-vi.mock("@/lib/arcjet", () => ({
-  default: {
-    protect: async () => ({
-      isDenied: () => rateLimitDenied,
-      reason: { isRateLimit: () => true, remaining: 0, reset: 3600 },
-    }),
-  },
-}));
+vi.mock("@/lib/arcjet", async () => {
+  const { ActionError } = await import("@/lib/action-error");
+  return {
+    enforceRateLimit: async () => {
+      if (rateLimitDenied) {
+        throw new ActionError("Too many requests. Please try again later.");
+      }
+    },
+  };
+});
+
+// Actions the browser calls report failure by returning { success: false }
+// rather than throwing, so the message survives production builds (see
+// lib/action-error.js). This reads like the rejects.toThrow it replaces.
+const expectFailure = async (promise, pattern) => {
+  const result = await promise;
+  expect(result.success).toBe(false);
+  if (pattern) expect(result.error).toMatch(pattern);
+  return result;
+};
 
 const { createAccount, getUserAccounts, getDashboardData } = await import(
   "@/actions/dashboard"
@@ -52,7 +70,10 @@ const {
 const { getCurrentBudget, updateBudget } = await import("@/actions/budget");
 const { getMyRating, submitRating } = await import("@/actions/rating");
 const { getLandingStats, uptimeSlot } = await import("@/lib/stats");
-const { recordUptime } = await import("@/lib/inngest/functions");
+const { recordUptime, processRecurringTransaction } = await import(
+  "@/lib/inngest/functions"
+);
+const { checkUser } = await import("@/lib/checkUser");
 const { db: appDb, withTenant } = await import("@/lib/prisma");
 
 // Fixtures are created with an admin connection that bypasses RLS.
@@ -63,6 +84,7 @@ const TENANTS = {
   bob: { clerkUserId: "clerk_it_bob", email: "it-bob@example.test" },
   // Signed up but never created an account: not an "active" user.
   carol: { clerkUserId: "clerk_it_carol", email: "it-carol@example.test" },
+  dave: { clerkUserId: "clerk_it_dave", email: "it-dave@example.test" },
 };
 
 const asTenant = (name) => {
@@ -146,9 +168,7 @@ describe("Account actions", () => {
 
   it("refuses to make another tenant's account default", async () => {
     asTenant("alice");
-    // Throws rather than returning {success:false}: useFetch only reads its
-    // error state from a rejection.
-    await expect(updateDefaultAccount(bobAccount)).rejects.toThrow(/not found/i);
+    await expectFailure(updateDefaultAccount(bobAccount), /not found/i);
     expect((await admin.account.findUnique({ where: { id: bobAccount } })).isDefault).toBe(true);
   });
 
@@ -171,9 +191,7 @@ describe("Account actions", () => {
 
   it("rejects a non-numeric balance", async () => {
     asTenant("alice");
-    await expect(
-      createAccount({ name: "Junk", type: "CURRENT", balance: "abc", isDefault: false })
-    ).rejects.toThrow(/Invalid balance/);
+    await expectFailure(createAccount({ name: "Junk", type: "CURRENT", balance: "abc", isDefault: false }), /Invalid balance/);
   });
 });
 
@@ -208,16 +226,14 @@ describe("Transaction actions", () => {
 
   it("refuses to post into another tenant's account", async () => {
     asTenant("alice");
-    await expect(
-      createTransaction({
+    await expectFailure(createTransaction({
         type: "EXPENSE",
         amount: 10,
         date: new Date(),
         accountId: bobAccount,
         category: "other-expense",
         isRecurring: false,
-      })
-    ).rejects.toThrow(/Account not found/);
+      }), /Account not found/);
     expect(await balanceOf(bobAccount)).toBe(500);
   });
 
@@ -325,7 +341,8 @@ describe("Transaction actions", () => {
       isRecurring: false,
     });
     asTenant("alice");
-    await expect(getTransaction(mine.data.id)).rejects.toThrow(/not found/i);
+    // Not found, not an error: the edit page turns null into a 404.
+    expect(await getTransaction(mine.data.id)).toBeNull();
   });
 
   it("refuses to edit another tenant's transaction", async () => {
@@ -341,32 +358,28 @@ describe("Transaction actions", () => {
     const bobBalance = await balanceOf(bobAccount);
 
     asTenant("alice");
-    await expect(
-      updateTransaction(mine.data.id, {
+    await expectFailure(updateTransaction(mine.data.id, {
         type: "INCOME",
         amount: 999999,
         date: new Date(),
         accountId: aliceAccount,
         category: "salary",
         isRecurring: false,
-      })
-    ).rejects.toThrow(/not found/i);
+      }), /not found/i);
     expect(await balanceOf(bobAccount)).toBe(bobBalance);
   });
 
   it("surfaces a rate-limit denial as an error", async () => {
     asTenant("alice");
     rateLimitDenied = true;
-    await expect(
-      createTransaction({
+    await expectFailure(createTransaction({
         type: "EXPENSE",
         amount: 1,
         date: new Date(),
         accountId: aliceAccount,
         category: "food",
         isRecurring: false,
-      })
-    ).rejects.toThrow(/Too many requests/);
+      }), /Too many requests/);
     rateLimitDenied = false;
   });
 
@@ -385,59 +398,51 @@ describe("Server-side validation", () => {
   it("rejects a negative amount instead of inverting the balance", async () => {
     asTenant("alice");
     const before = await balanceOf(aliceAccount);
-    await expect(
-      createTransaction({
+    await expectFailure(createTransaction({
         type: "EXPENSE",
         amount: -500,
         date: new Date(),
         accountId: aliceAccount,
         category: "food",
         isRecurring: false,
-      })
-    ).rejects.toThrow(/greater than zero/i);
+      }), /greater than zero/i);
     expect(await balanceOf(aliceAccount)).toBe(before);
   });
 
   it("rejects a zero amount", async () => {
     asTenant("alice");
-    await expect(
-      createTransaction({
+    await expectFailure(createTransaction({
         type: "EXPENSE",
         amount: 0,
         date: new Date(),
         accountId: aliceAccount,
         category: "food",
         isRecurring: false,
-      })
-    ).rejects.toThrow(/greater than zero/i);
+      }), /greater than zero/i);
   });
 
   it("rejects a type outside the enum", async () => {
     asTenant("alice");
-    await expect(
-      createTransaction({
+    await expectFailure(createTransaction({
         type: "REFUND",
         amount: 10,
         date: new Date(),
         accountId: aliceAccount,
         category: "food",
         isRecurring: false,
-      })
-    ).rejects.toThrow();
+      }));
   });
 
   it("rejects a recurring transaction with no interval", async () => {
     asTenant("alice");
-    await expect(
-      createTransaction({
+    await expectFailure(createTransaction({
         type: "EXPENSE",
         amount: 10,
         date: new Date(),
         accountId: aliceAccount,
         category: "food",
         isRecurring: true,
-      })
-    ).rejects.toThrow(/interval is required/i);
+      }), /interval is required/i);
   });
 
   it("strips unknown keys so a payload cannot reassign ownership", async () => {
@@ -553,8 +558,8 @@ describe("Account detail page data", () => {
 describe("Budget actions", () => {
   it("rejects a zero or negative budget", async () => {
     asTenant("alice");
-    await expect(updateBudget(0)).rejects.toThrow(/greater than zero/i);
-    await expect(updateBudget(-50)).rejects.toThrow(/greater than zero/i);
+    await expectFailure(updateBudget(0), /greater than zero/i);
+    await expectFailure(updateBudget(-50), /greater than zero/i);
   });
 
   it("creates then updates a budget through the same upsert", async () => {
@@ -616,15 +621,13 @@ describe("Dashboard data", () => {
 describe("Ratings", () => {
   it("refuses a rating from a user who has not created an account", async () => {
     asTenant("carol");
-    await expect(submitRating(5)).rejects.toThrow(/Create an account/);
+    await expectFailure(submitRating(5), /Create an account/);
     expect(await getMyRating()).toBeNull();
   });
 
   it.each([0, 6, 3.5, "abc"])("rejects %s stars", async (score) => {
     asTenant("alice");
-    await expect(submitRating(score)).rejects.toThrow(
-      /between 1 and 5|whole number|must be a number/
-    );
+    await expectFailure(submitRating(score), /between 1 and 5|whole number|must be a number/);
   });
 
   it("stores one rating per user and lets them change it", async () => {
@@ -702,5 +705,262 @@ describe("Landing stats", () => {
     await expect(
       appDb.$queryRaw`SELECT count(*) FROM uptime_checks`
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe("Recurring schedules", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  const createRecurring = (overrides = {}) =>
+    createTransaction({
+      type: "EXPENSE",
+      amount: 100,
+      date: new Date("2026-01-10T00:00:00Z"),
+      accountId: aliceAccount,
+      category: "housing",
+      description: "Rent",
+      isRecurring: true,
+      recurringInterval: "MONTHLY",
+      ...overrides,
+    });
+
+  it("schedules a back-dated series from today, not in the past", async () => {
+    asTenant("alice");
+    const res = await createRecurring();
+    const next = new Date(res.data.nextRecurringDate);
+    expect(next.getTime()).toBeGreaterThan(Date.now());
+    // Still on the series' own day of the month.
+    expect(next.getUTCDate()).toBe(10);
+  });
+
+  it("keeps the schedule when an edit does not touch it", async () => {
+    asTenant("alice");
+    const created = await createRecurring();
+    const edited = await updateTransaction(created.data.id, {
+      type: "EXPENSE",
+      amount: 100,
+      date: new Date("2026-01-10T00:00:00Z"),
+      accountId: aliceAccount,
+      category: "housing",
+      description: "Rent (typo fixed)",
+      isRecurring: true,
+      recurringInterval: "MONTHLY",
+    });
+    expect(edited.success).toBe(true);
+    // Recomputing it from the original date used to land in the past, and
+    // the nightly job posted the occurrence a second time.
+    expect(edited.data.nextRecurringDate).toEqual(created.data.nextRecurringDate);
+  });
+
+  it("reschedules when the edit changes the interval", async () => {
+    asTenant("alice");
+    const created = await createRecurring();
+    const edited = await updateTransaction(created.data.id, {
+      type: "EXPENSE",
+      amount: 100,
+      date: new Date("2026-01-10T00:00:00Z"),
+      accountId: aliceAccount,
+      category: "housing",
+      description: "Rent",
+      isRecurring: true,
+      recurringInterval: "WEEKLY",
+    });
+    const next = new Date(edited.data.nextRecurringDate);
+    expect(next.getTime()).toBeGreaterThan(Date.now());
+    expect(next.getTime() - Date.now()).toBeLessThanOrEqual(7 * DAY);
+  });
+
+  it("posts every missed occurrence on its own date, once", async () => {
+    asTenant("alice");
+    const anchor = new Date(Date.now() - 3 * DAY);
+    const created = await createRecurring({
+      date: anchor,
+      recurringInterval: "DAILY",
+      amount: 7,
+      description: "Daily coffee",
+      category: "food",
+    });
+    // As if the nightly job had been down since the day after the anchor.
+    await admin.transaction.update({
+      where: { id: created.data.id },
+      data: { nextRecurringDate: new Date(anchor.getTime() + DAY) },
+    });
+    const before = await balanceOf(aliceAccount);
+
+    const step = { run: async (_id, fn) => fn() };
+    const event = { data: { transactionId: created.data.id, userId: TENANTS.alice.id } };
+    await processRecurringTransaction["fn"]({ event, step });
+    // Running again must not post anything twice.
+    await processRecurringTransaction["fn"]({ event, step });
+
+    const copies = await admin.transaction.findMany({
+      where: { userId: TENANTS.alice.id, description: "Daily coffee (Recurring)" },
+      orderBy: { date: "asc" },
+    });
+    expect(copies.map((c) => c.date.getTime())).toEqual([
+      anchor.getTime() + DAY,
+      anchor.getTime() + 2 * DAY,
+      anchor.getTime() + 3 * DAY,
+    ]);
+    expect(await balanceOf(aliceAccount)).toBeCloseTo(before - 21, 6);
+
+    const template = await admin.transaction.findUnique({ where: { id: created.data.id } });
+    expect(template.nextRecurringDate.getTime()).toBe(anchor.getTime() + 4 * DAY);
+  });
+});
+
+describe("Tenant scoping of getUserTransactions", () => {
+  it("ignores a userId in the filters instead of letting it widen the query", async () => {
+    asTenant("alice");
+    for (const query of [
+      { userId: { not: "" } },
+      { userId: TENANTS.bob.id },
+      { OR: [{ userId: TENANTS.bob.id }] },
+    ]) {
+      const res = await getUserTransactions(query);
+      expect(res.success).toBe(true);
+      expect(new Set(res.data.map((t) => t.userId))).toEqual(
+        new Set([TENANTS.alice.id])
+      );
+    }
+  });
+
+  it("still applies the allowed filters", async () => {
+    asTenant("alice");
+    const res = await getUserTransactions({ type: "INCOME" });
+    expect(res.data.length).toBeGreaterThan(0);
+    expect(res.data.every((t) => t.type === "INCOME")).toBe(true);
+  });
+});
+
+describe("Account defaults under concurrency", () => {
+  it("leaves exactly one default when two first accounts are created at once", async () => {
+    asTenant("dave");
+    const results = await Promise.all([
+      createAccount({ name: "Dave A", type: "CURRENT", balance: "0", isDefault: false }),
+      createAccount({ name: "Dave B", type: "SAVINGS", balance: "0", isDefault: false }),
+    ]);
+    expect(results.every((r) => r.success)).toBe(true);
+
+    const accounts = await admin.account.findMany({ where: { userId: TENANTS.dave.id } });
+    expect(accounts).toHaveLength(2);
+    expect(accounts.filter((a) => a.isDefault)).toHaveLength(1);
+  });
+});
+
+describe("Account chart totals", () => {
+  it("sums the whole history per day, not just the table's rows", async () => {
+    asTenant("alice");
+    const account = await getAccountWithTransactions(aliceAccount);
+    const totals = account.dailyTotals.reduce(
+      (acc, day) => ({ income: acc.income + day.income, expense: acc.expense + day.expense }),
+      { income: 0, expense: 0 }
+    );
+
+    const byType = await admin.transaction.groupBy({
+      by: ["type"],
+      where: { accountId: aliceAccount },
+      _sum: { amount: true },
+    });
+    const sum = (type) =>
+      byType.find((row) => row.type === type)?._sum.amount?.toNumber() ?? 0;
+
+    expect(totals.income).toBeCloseTo(sum("INCOME"), 6);
+    expect(totals.expense).toBeCloseTo(sum("EXPENSE"), 6);
+    expect(account.dailyTotals.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.day))).toBe(true);
+  });
+});
+
+describe("Category validation", () => {
+  it("refuses a category that is not in the list", async () => {
+    asTenant("alice");
+    await expectFailure(
+      createTransaction({
+        type: "EXPENSE",
+        amount: 10,
+        date: new Date(),
+        accountId: aliceAccount,
+        category: "Groceries",
+        isRecurring: false,
+      }),
+      /Choose a category from the list/
+    );
+  });
+});
+
+describe("User provisioning (checkUser)", () => {
+  const EXTRA = ["clerk_it_erin", "clerk_it_erin2", "clerk_it_erin3", "clerk_it_frank"];
+  const cleanup = () =>
+    admin.user.deleteMany({
+      where: {
+        OR: [{ clerkUserId: { in: EXTRA } }, { email: "it-erin@example.test" }],
+      },
+    });
+
+  const profile = (id, { email = "it-erin@example.test", verified = true, firstName = "Erin" } = {}) => {
+    const address = email
+      ? { emailAddress: email, verification: { status: verified ? "verified" : "unverified" } }
+      : null;
+    return {
+      id,
+      firstName,
+      lastName: null,
+      username: null,
+      imageUrl: "https://example.test/erin.png",
+      primaryEmailAddress: address,
+      emailAddresses: address ? [address] : [],
+    };
+  };
+
+  beforeAll(cleanup);
+  afterAll(cleanup);
+
+  it("creates the row on first sign-in", async () => {
+    currentClerkId = "clerk_it_erin";
+    currentClerkProfile = profile("clerk_it_erin");
+    const user = await checkUser();
+    expect(user).toMatchObject({ clerkUserId: "clerk_it_erin", email: "it-erin@example.test", name: "Erin" });
+  });
+
+  it("does not call Clerk again while the profile is fresh", async () => {
+    currentClerkId = "clerk_it_erin";
+    currentUserCalls = 0;
+    await checkUser();
+    await checkUser();
+    expect(currentUserCalls).toBe(0);
+  });
+
+  it("syncs a changed Clerk profile once the row is a day old", async () => {
+    await admin.$executeRaw`UPDATE users SET "updatedAt" = now() - interval '2 days' WHERE "clerkUserId" = 'clerk_it_erin'`;
+    currentClerkId = "clerk_it_erin";
+    currentClerkProfile = profile("clerk_it_erin", { firstName: "Erin Renamed" });
+    const user = await checkUser();
+    expect(user.name).toBe("Erin Renamed");
+  });
+
+  it("re-links a returning person's data when their email is verified", async () => {
+    const original = await admin.user.findUnique({ where: { clerkUserId: "clerk_it_erin" } });
+
+    // Same person, new Clerk account.
+    currentClerkId = "clerk_it_erin2";
+    currentClerkProfile = profile("clerk_it_erin2");
+    const user = await checkUser();
+
+    expect(user.id).toBe(original.id);
+    expect(user.clerkUserId).toBe("clerk_it_erin2");
+  });
+
+  it("refuses to hand existing data to an unverified email", async () => {
+    currentClerkId = "clerk_it_erin3";
+    currentClerkProfile = profile("clerk_it_erin3", { verified: false });
+    await expect(checkUser()).rejects.toThrow(/already registered/);
+    expect(await admin.user.findUnique({ where: { clerkUserId: "clerk_it_erin3" } })).toBeNull();
+  });
+
+  it("lets someone without an email address sign in", async () => {
+    currentClerkId = "clerk_it_frank";
+    currentClerkProfile = profile("clerk_it_frank", { email: null, firstName: "Frank" });
+    const user = await checkUser();
+    expect(user).toMatchObject({ clerkUserId: "clerk_it_frank", email: null, name: "Frank" });
   });
 });

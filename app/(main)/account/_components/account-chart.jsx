@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { endOfDay, format, startOfDay, subDays } from 'date-fns';
+import { format, parseISO, subDays } from 'date-fns';
 import { useMemo, useState } from 'react'
 import {
   Bar,
@@ -24,41 +24,39 @@ const DATE_RANGES = {
   ALL: { label: "All Time", days: null },
 };
 
-export function AccountChart ({ transactions }) {
+const rupees = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 2,
+});
+
+// dailyTotals: [{ day: "2026-09-14", income, expense }], one row per day with
+// activity, summed by the database over the account's whole history. The
+// chart used to be drawn from the transaction table's rows, which stop at
+// the most recent 500, so "All Time" and its totals were silently incomplete.
+export function AccountChart ({ dailyTotals }) {
   const [dateRange, setDateRange] = useState("1M");
 
   const filteredData = useMemo(() => {
     const range = DATE_RANGES[dateRange];
     const now = new Date();
-    const startDate = range.days
-      ? startOfDay(subDays(now, range.days))
-      : startOfDay(new Date(0));
+    // yyyy-MM-dd strings compare correctly as plain strings.
+    const today = format(now, "yyyy-MM-dd");
+    const firstDay = range.days
+      ? format(subDays(now, range.days), "yyyy-MM-dd")
+      : null;
+    // Ranges longer than a year need the year to tell the bars apart.
+    const label = range.days ? "MMM dd" : "MMM dd ''yy";
 
-    // Filter transactions within date range
-    const filtered = transactions.filter(
-      (t) => new Date(t.date) >= startDate && new Date(t.date) <= endOfDay(now)
-    );
-
-    // Group transactions by day. The bucket key carries the year so days from
-    // different years stay separate and sort correctly -- "MMM dd" alone parses
-    // to an arbitrary default year, which scrambled the 6M and All Time ranges.
-    const grouped = filtered.reduce((acc, transaction) => {
-      const day = new Date(transaction.date);
-      const key = format(day, "yyyy-MM-dd");
-      if (!acc[key]) {
-        acc[key] = { key, date: format(day, "MMM dd"), income: 0, expense: 0 };
-      }
-      if (transaction.type === "INCOME") {
-        acc[key].income += transaction.amount;
-      } else {
-        acc[key].expense += transaction.amount;
-      }
-      return acc;
-    }, {});
-
-    // Convert to array and sort by date
-    return Object.values(grouped).sort((a, b) => a.key.localeCompare(b.key));
-  }, [transactions, dateRange]);
+    return dailyTotals
+      .filter(({ day }) => (!firstDay || day >= firstDay) && day <= today)
+      .map(({ day, income, expense }) => ({
+        key: day,
+        date: format(parseISO(day), label),
+        income,
+        expense,
+      }));
+  }, [dailyTotals, dateRange]);
 
   const totals = useMemo(() => {
     return filteredData.reduce(
@@ -137,7 +135,8 @@ export function AccountChart ({ transactions }) {
                 axisLine={false}
                 tickFormatter={(value) => `₹${value}`}
               />
-              <Tooltip formatter={(value) => [`₹${value}`, undefined]} />
+              {/* Sums of paise amounts are floats: 1234.5600000000002. */}
+              <Tooltip formatter={(value) => [rupees.format(value), undefined]} />
               <Legend />
               <Bar
                 dataKey="income"

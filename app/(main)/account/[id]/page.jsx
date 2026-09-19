@@ -37,7 +37,7 @@ export default async function AccountsPage({ params }) {
             </p>
             {account.hasMoreTransactions && (
               <p className="text-xs text-muted-foreground">
-                Showing the most recent {account.transactionLimit}
+                The table shows the most recent {account.transactionLimit}
               </p>
             )}
           </div>
@@ -47,7 +47,7 @@ export default async function AccountsPage({ params }) {
         <Suspense
           fallback={<HashLoader className="mt-4" width={"100%"} color="#9333ea" />}
         >
-          <AccountChart transactions={transactions} />
+          <AccountChart dailyTotals={account.dailyTotals} />
         </Suspense>
 
         {/* Transaction Table */}

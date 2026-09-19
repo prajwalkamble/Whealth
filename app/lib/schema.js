@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { ActionError } from "@/lib/action-error";
+import { defaultCategories } from "@/data/categories";
 
 // --- Form schemas -----------------------------------------------------------
 // These describe what the *browser form* holds, where number inputs are still
@@ -41,6 +43,13 @@ export const transactionSchema = z
 // unknown keys they also stop a crafted body from smuggling extra columns
 // (userId, id, status) into a Prisma create/update.
 
+// category id -> the transaction types it may be used with.
+const CATEGORY_TYPES = defaultCategories.reduce((map, category) => {
+  if (!map.has(category.id)) map.set(category.id, new Set());
+  map.get(category.id).add(category.type);
+  return map;
+}, new Map());
+
 const positiveAmount = z
   .number({ invalid_type_error: "Amount must be a number" })
   .finite("Amount must be a number")
@@ -78,6 +87,17 @@ export const transactionInputSchema = z
         path: ["recurringInterval"],
       });
     }
+
+    // Any string used to be accepted, so a receipt scan that answered
+    // "Groceries" (or an expense category on an income) was stored as a
+    // category the app has no name or colour for.
+    if (!CATEGORY_TYPES.get(data.category)?.has(data.type)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Choose a category from the list",
+        path: ["category"],
+      });
+    }
   });
 
 export const budgetInputSchema = z.coerce.number().pipe(positiveAmount);
@@ -92,7 +112,7 @@ export const ratingInputSchema = z.coerce
 export function parseOrThrow(schema, value) {
   const result = schema.safeParse(value);
   if (!result.success) {
-    throw new Error(result.error.issues[0]?.message ?? "Invalid input");
+    throw new ActionError(result.error.issues[0]?.message ?? "Invalid input");
   }
   return result.data;
 }

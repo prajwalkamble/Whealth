@@ -24,19 +24,21 @@ const Header = () => {
 
         <div className="flex items-center space-x-4">
           <SignedIn>
-            <Link href={"/dashboard"} className="text-gray-600 hover:text-blue-600 flex items-center gap-2">
-              <Button variant="outline">
+            {/* asChild: each button renders as its link. A <button> nested
+                inside an <a> is invalid HTML. */}
+            <Button variant="outline" asChild>
+              <Link href={"/dashboard"} className="text-gray-600 hover:text-blue-600">
                 <LayoutDashboard size={18} />
                 <span className="hidden md:inline">Dashboard</span>
-              </Button>
-            </Link>
+              </Link>
+            </Button>
 
-            <Link href={"/transaction/create"} className="flex items-center gap-2">
-              <Button>
+            <Button asChild>
+              <Link href={"/transaction/create"}>
                 <PenBox size={18} />
                 <span className="hidden md:inline">Add Transaction</span>
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </SignedIn>
 
           <SignedOut>

@@ -2,6 +2,7 @@ import { getUserAccounts } from '@/actions/dashboard';
 import { defaultCategories } from '@/data/categories';
 import { AddTransactionForm } from '../_components/transaction-form';
 import { getTransaction } from '@/actions/transaction';
+import { notFound } from 'next/navigation';
 
 export default async function AddTransactionPage({ searchParams }) {
   const accounts = await getUserAccounts();
@@ -9,8 +10,9 @@ export default async function AddTransactionPage({ searchParams }) {
 
   let initialData = null;
   if (editId) {
-    const transaction = await getTransaction(editId);
-    initialData = transaction;
+    initialData = await getTransaction(editId);
+    // A stale or foreign id used to crash the page; it is simply not found.
+    if (!initialData) notFound();
   }
 
   return (

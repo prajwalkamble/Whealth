@@ -3,6 +3,10 @@
 import { withCurrentTenant } from "@/lib/prisma";
 import { budgetInputSchema, parseOrThrow } from "@/app/lib/schema";
 import { revalidatePath } from "next/cache";
+import { runAction } from "@/lib/action-error";
+import { enforceRateLimit } from "@/lib/arcjet";
+import { requireClerkUserId } from "@/lib/session";
+import { monthBounds } from "@/lib/time";
 
 export async function getCurrentBudget(accountId) {
   try {
@@ -11,21 +15,8 @@ export async function getCurrentBudget(accountId) {
       // if it is ever run against a connection without a tenant context.
       const budget = await tx.budget.findUnique({ where: { userId } });
 
-      const currentDate = new Date();
-      const startOfMonth = new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth(),
-        1
-      );
-      const endOfMonth = new Date(
-        currentDate.getFullYear(),
-        currentDate.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999
-      );
+      // The month on the app's calendar, not the server's UTC one.
+      const { startOfMonth, endOfMonth } = monthBounds();
 
       const expenses = await tx.transaction.aggregate({
         where: {
@@ -56,7 +47,10 @@ export async function getCurrentBudget(accountId) {
 }
 
 export async function updateBudget(rawAmount) {
-  try {
+  return runAction(async () => {
+    const clerkUserId = await requireClerkUserId();
+    await enforceRateLimit("write", clerkUserId);
+
     // Validated server-side: nothing stopped a direct call from storing 0 or a
     // negative budget, which rendered as "Infinity% used" on the dashboard.
     const amount = parseOrThrow(budgetInputSchema, rawAmount);
@@ -81,10 +75,5 @@ export async function updateBudget(rawAmount) {
       success: true,
       data: { ...budget, amount: budget.amount.toNumber() },
     };
-  } catch (error) {
-    console.error("Error updating budget: ", error);
-    // Thrown so useFetch surfaces it; a returned {success:false} left the
-    // budget editor with no feedback at all.
-    throw new Error(error.message);
-  }
+  });
 }

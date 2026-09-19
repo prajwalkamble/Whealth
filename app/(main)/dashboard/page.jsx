@@ -11,21 +11,23 @@ import { getMyRating } from '@/actions/rating';
 import RatingCard from './_components/rating-card';
 
 async function DashboardPage() {
-  const accounts = await getUserAccounts();
+  // Independent queries run side by side; they used to run one after another,
+  // each waiting on the previous round trip to the database.
+  const [accounts, transactions] = await Promise.all([
+    getUserAccounts(),
+    getDashboardData(),
+  ]);
 
   const defaultAccount = accounts?.find((account) => account.isDefault);
-
-  let budgetData = null;
-  if (defaultAccount) {
-    budgetData = await getCurrentBudget(defaultAccount.id);
-  }
-
-  const transactions = await getDashboardData();
 
   // Only users who have created an account can rate; submitRating enforces
   // the same rule on the server.
   const canRate = accounts.length > 0;
-  const myRating = canRate ? await getMyRating() : null;
+
+  const [budgetData, myRating] = await Promise.all([
+    defaultAccount ? getCurrentBudget(defaultAccount.id) : null,
+    canRate ? getMyRating() : null,
+  ]);
 
   return (
     <div className="space-y-8">

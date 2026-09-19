@@ -3,6 +3,10 @@
 import { withCurrentTenant } from "@/lib/prisma";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { LANDING_STATS_TAG } from "@/lib/stats";
+import { ActionError, runAction } from "@/lib/action-error";
+import { enforceRateLimit } from "@/lib/arcjet";
+import { requireClerkUserId } from "@/lib/session";
+import { APP_TIME_ZONE } from "@/lib/time";
 
 const serializeTransaction = (obj) => {
   const serialized = { ...obj };
@@ -15,14 +19,26 @@ const serializeTransaction = (obj) => {
   return serialized;
 };
 
+// Serialises changes to one user's accounts. Two requests that both unset the
+// old default and set a new one could otherwise interleave and leave two
+// defaults (or none); holding the user's row lock makes the second wait.
+async function lockUserAccounts(tx, userId) {
+  await tx.$executeRaw`SELECT 1 FROM users WHERE id = ${userId} FOR UPDATE`;
+}
+
 export async function updateDefaultAccount(accountId) {
-  try {
+  return runAction(async () => {
+    const clerkUserId = await requireClerkUserId();
+    await enforceRateLimit("write", clerkUserId);
+
     const account = await withCurrentTenant(async (tx, userId) => {
+      await lockUserAccounts(tx, userId);
+
       const target = await tx.account.findFirst({
         where: { id: accountId, userId },
         select: { id: true },
       });
-      if (!target) throw new Error("Account not found");
+      if (!target) throw new ActionError("Account not found");
 
       await tx.account.updateMany({
         where: { userId, isDefault: true },
@@ -37,17 +53,11 @@ export async function updateDefaultAccount(accountId) {
 
     revalidatePath("/dashboard");
     return { success: true, data: serializeTransaction(account) };
-  } catch (error) {
-    // Thrown, not returned: useFetch only populates its `error` state from a
-    // rejection, so a returned {success:false} was invisible to every caller
-    // and the UI reported it as a success.
-    throw new Error(error.message);
-  }
+  });
 }
 
-// The account page paginates and charts client-side, so it used to pull every
-// transaction on the account into the RSC payload. Bounded here, with the
-// truncation reported rather than hidden.
+// The table pages client-side, so it gets the most recent transactions,
+// bounded, with the truncation reported rather than hidden.
 // Not exported: a "use server" module may only export async functions.
 const ACCOUNT_TRANSACTION_LIMIT = 500;
 
@@ -68,9 +78,24 @@ export async function getAccountWithTransactions(accountId) {
 
     if (!account) return null;
 
+    // The chart used to be drawn from the same 500 rows, so "All Time" and its
+    // totals silently stopped at the 500th transaction. Per-day sums over the
+    // whole history are small whatever the account's size. Days follow the
+    // app's calendar, like every other date grouping.
+    const dailyTotals = await tx.$queryRaw`
+      SELECT
+        to_char(("date" AT TIME ZONE 'UTC') AT TIME ZONE ${APP_TIME_ZONE}, 'YYYY-MM-DD') AS day,
+        COALESCE(SUM(amount) FILTER (WHERE type = 'INCOME'), 0)::float8 AS income,
+        COALESCE(SUM(amount) FILTER (WHERE type = 'EXPENSE'), 0)::float8 AS expense
+      FROM transactions
+      WHERE "accountId" = ${accountId} AND "userId" = ${userId}
+      GROUP BY 1
+      ORDER BY 1`;
+
     return {
       ...serializeTransaction(account),
       transactions: account.transactions.map(serializeTransaction),
+      dailyTotals,
       transactionLimit: ACCOUNT_TRANSACTION_LIMIT,
       hasMoreTransactions:
         account._count.transactions > account.transactions.length,
@@ -79,7 +104,17 @@ export async function getAccountWithTransactions(accountId) {
 }
 
 export async function bulkDeleteTransactions(transactionIds) {
-  try {
+  return runAction(async () => {
+    const clerkUserId = await requireClerkUserId();
+    await enforceRateLimit("write", clerkUserId);
+
+    if (
+      !Array.isArray(transactionIds) ||
+      !transactionIds.every((id) => typeof id === "string")
+    ) {
+      throw new ActionError("Invalid transaction selection");
+    }
+
     const deletedCount = await withCurrentTenant(async (tx, userId) => {
       const transactions = await tx.transaction.findMany({
         where: {
@@ -131,7 +166,5 @@ export async function bulkDeleteTransactions(transactionIds) {
     revalidateTag(LANDING_STATS_TAG);
 
     return { success: true, data: { deleted: deletedCount } };
-  } catch (error) {
-    throw new Error(error.message);
-  }
+  });
 }

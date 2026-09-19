@@ -10,9 +10,9 @@ const NotFound = () => {
       <p className="text-gray-600 mb-8">
         Oops! The page you&apos;re looking for doesn&apos;t exist or have been moved.
       </p>
-      <Link href="/">
-        <Button>Return Home</Button>
-      </Link>
+      <Button asChild>
+        <Link href="/">Return Home</Link>
+      </Button>
     </div>
   );
 };

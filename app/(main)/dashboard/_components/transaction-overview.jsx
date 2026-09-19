@@ -24,9 +24,16 @@ const COLORS = [
 ];
 
 const DashboardOverview = ({ accounts, transactions }) => {
-  const [selectedAccountId, setSelectedAccountId] = useState(
-    accounts.find((a) => a.isDefault)?.id || accounts[0]?.id
-  );
+  const fallbackAccountId = accounts.find((a) => a.isDefault)?.id || accounts[0]?.id;
+  const [chosenAccountId, setSelectedAccountId] = useState(fallbackAccountId);
+
+  // useState only reads its initial value once, so the selector stayed empty
+  // after the first account was created (there was none to pick at mount),
+  // and kept pointing at an account that no longer existed. Fall back to the
+  // default whenever the choice is not in the current list.
+  const selectedAccountId = accounts.some((a) => a.id === chosenAccountId)
+    ? chosenAccountId
+    : fallbackAccountId;
 
   // Filter transactions for selected account
   const accountTransactions = transactions.filter(

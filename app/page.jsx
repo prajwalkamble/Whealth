@@ -157,14 +157,13 @@ export default async function Home() {
             {" "}
             Join thousands of users who are already managing their finances smarter with Whealth
           </p>
-          <Link href="/dashboard">
-            <Button
-              size="lg"
-              className="bg-white text-blue-600 hover:bg-blue-50 animate-pulse"
-            >
-              Start Free Trial
-            </Button>
-          </Link>
+          <Button
+            size="lg"
+            className="bg-white text-blue-600 hover:bg-blue-50 animate-pulse"
+            asChild
+          >
+            <Link href="/dashboard">Start Free Trial</Link>
+          </Button>
         </div>
       </section>
     </div>

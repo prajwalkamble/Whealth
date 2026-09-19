@@ -96,6 +96,9 @@ export function AddTransactionForm ({
 
   const handleScanComplete = (scannedData) => {
     if (scannedData) {
+      // A receipt is money going out. The scanner only ever suggests expense
+      // categories, so the type has to match or the category is rejected.
+      setValue("type", "EXPENSE");
       setValue("amount", scannedData.amount.toString());
       setValue("date", new Date(scannedData.date));
       if (scannedData.description) {
@@ -112,6 +115,7 @@ export function AddTransactionForm ({
   const isRecurring = watch("isRecurring");
   const date = watch("date");
   const category = watch("category");
+  const accountId = watch("accountId");
 
   const filteredCategories = categories.filter(
     (category) => category.type === type
@@ -134,7 +138,7 @@ export function AddTransactionForm ({
               setValue("category", "", { shouldValidate: false });
             }
           }}
-          defaultValue={type}
+          value={type}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select type" />
@@ -169,8 +173,10 @@ export function AddTransactionForm ({
         <div className="space-y-2">
           <label className="text-sm font-medium">Account</label>
           <Select
-            onValueChange={(value) => setValue("accountId", value)}
-            defaultValue={getValues("accountId")}
+            onValueChange={(value) =>
+              setValue("accountId", value, { shouldValidate: true })
+            }
+            value={accountId ?? ""}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select account" />
@@ -181,16 +187,26 @@ export function AddTransactionForm ({
                   {account.name} (₹{parseFloat(account.balance).toFixed(2)})
                 </SelectItem>
               ))}
-              <CreateAccountDrawer>
-                <Button
-                  variant="ghost"
-                  className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                >
-                  Create Account
-                </Button>
-              </CreateAccountDrawer>
             </SelectContent>
           </Select>
+
+          {/* Outside the dropdown: inside it, the drawer was part of the
+              dropdown's content and unmounted as soon as the dropdown closed. */}
+          <CreateAccountDrawer
+            onCreated={(account) => {
+              setValue("accountId", account.id, { shouldValidate: true });
+              // Reload the server-rendered account list so the new one appears.
+              router.refresh();
+            }}
+          >
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto p-0 text-sm"
+            >
+              + Create a new account
+            </Button>
+          </CreateAccountDrawer>
 
           {errors.accountId && (
             <p className="text-sm text-red-500">{errors.accountId.message}</p>

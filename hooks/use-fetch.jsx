@@ -16,13 +16,25 @@ const useFetch = (cb) => {
 
     try {
       const response = await cb(...args);
+
+      // Actions report expected failures by returning { success: false }
+      // rather than throwing (see lib/action-error.js), so that the message
+      // survives production builds. Treat that exactly like a throw.
+      if (response?.success === false) {
+        const failure = new Error(response.error);
+        setError(failure);
+        toast.error(response.error);
+        return response;
+      }
+
       setData(response);
       setError(null);
       return response;
     } catch (error) {
       setError(error);
       // The only place a failed action is reported. Callers must not add their
-      // own error toast on top of this one.
+      // own error toast on top of this one. A throw that reaches here is
+      // unexpected (network failure, a crash); its message may be generic.
       toast.error(error.message);
       return undefined;
     } finally {

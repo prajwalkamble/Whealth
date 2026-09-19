@@ -168,6 +168,15 @@ export function TransactionTable ({ transactions }) {
     }
   }, [currentPage, totalPages]);
 
+  // Any change to what is shown clears the selection. It used to survive a
+  // search or filter change, so "Delete Selected (n)" went on to delete rows
+  // that were no longer on screen.
+  const changeFilter = (setter) => (value) => {
+    setter(value);
+    setCurrentPage(1);
+    setSelectedIDs([]);
+  };
+
   const handleClearFilters = () => {
     setSearchTerm("");
     setTypeFilter("");
@@ -194,10 +203,7 @@ export function TransactionTable ({ transactions }) {
           <Input
             placeholder="Search transactions"
             value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
+            onChange={(e) => changeFilter(setSearchTerm)(e.target.value)}
             className="pl-10"
           />
         </div>
@@ -205,10 +211,7 @@ export function TransactionTable ({ transactions }) {
         <div className="flex gap-2">
           <Select
             value={typeFilter}
-            onValueChange={(value) => {
-              setTypeFilter(value);
-              setCurrentPage(1);
-            }}
+            onValueChange={changeFilter(setTypeFilter)}
           >
             <SelectTrigger>
               <SelectValue placeholder="All Types" />
@@ -221,10 +224,7 @@ export function TransactionTable ({ transactions }) {
 
           <Select
             value={recurringFilter}
-            onValueChange={(value) =>{
-              setRecurringFilter(value);
-              setCurrentPage(1);
-            }}
+            onValueChange={changeFilter(setRecurringFilter)}
           >
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="All Transactions" />

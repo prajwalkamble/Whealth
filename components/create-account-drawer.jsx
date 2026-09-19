@@ -14,7 +14,9 @@ import { createAccount } from '@/actions/dashboard';
 import { Loader } from 'lucide-react';
 import { toast } from 'sonner';
 
-const CreateAccountDrawer = ({ children }) => {
+// onCreated receives the new account, for callers that need to react to it
+// (the transaction form selects it).
+const CreateAccountDrawer = ({ children, onCreated }) => {
   const [open, setOpen] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch, reset} = useForm({
@@ -42,7 +44,11 @@ const CreateAccountDrawer = ({ children }) => {
       toast.success("Account created successfully");
       reset();
       setOpen(false);
+      onCreated?.(newAccount.data);
     }
+    // onCreated is left out on purpose: a new function each parent render
+    // would re-run this and report the same account again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [createAccountLoading, newAccount, reset]);
 
   // createAccount throws on failure and useFetch raises the toast, so there is

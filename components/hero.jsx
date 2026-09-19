@@ -39,16 +39,20 @@ const HeroSection = () => {
           analyze, and optimize your spendings with real-time insights.
         </p>
         <div className="flex justify-center space-x-4">
-          <Link href="/dashboard">
-            <Button size="lg" className="px-8">
-              Get Started
-            </Button>
-          </Link>
-          <Link href="https://github.com/prajwalkamble/Whealth" target="_blank">
-            <Button size="lg" variant="outline" className="px-8">
+          {/* asChild: the button renders as the link itself. A <button>
+              nested inside an <a> is invalid HTML. */}
+          <Button size="lg" className="px-8" asChild>
+            <Link href="/dashboard">Get Started</Link>
+          </Button>
+          <Button size="lg" variant="outline" className="px-8" asChild>
+            <Link
+              href="https://github.com/prajwalkamble/Whealth"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Watch Demo
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
         <div className="hero-image-wrapper">
           <div ref={imageRef} className="hero-image">

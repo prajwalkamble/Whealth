@@ -16,6 +16,27 @@ const base = {
 };
 
 describe("transactionInputSchema", () => {
+  it("rejects a category that is not in the list", () => {
+    expect(() =>
+      parseOrThrow(transactionInputSchema, { ...base, category: "Groceries" })
+    ).toThrow(/Choose a category from the list/);
+  });
+
+  it("rejects a category of the other transaction type", () => {
+    expect(() =>
+      parseOrThrow(transactionInputSchema, { ...base, type: "INCOME", category: "food" })
+    ).toThrow(/Choose a category from the list/);
+  });
+
+  it("reports validation failures as ActionErrors, whose message the user sees", () => {
+    try {
+      parseOrThrow(transactionInputSchema, { ...base, amount: -1 });
+      throw new Error("expected a validation failure");
+    } catch (error) {
+      expect(error.name).toBe("ActionError");
+    }
+  });
+
   it("accepts a valid payload", () => {
     expect(parseOrThrow(transactionInputSchema, base).amount).toBe(100);
   });

@@ -18,7 +18,9 @@ const nextConfig = {
 
   experimental: {
     serverActions: {
-      bodySizeLimit: "5mb",
+      // Vercel caps request bodies at 4.5 MB whatever this says; the receipt
+      // scanner shrinks images to stay under 4 MB before uploading.
+      bodySizeLimit: "4.5mb",
     },
   },
 };
