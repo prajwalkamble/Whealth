@@ -58,6 +58,9 @@ const {
   getUserAccounts,
   getDashboardData,
   getDashboardSummary,
+  getMonthlyCashFlow,
+  getCategoryBreakdown,
+  getDashboardPageData,
 } = await import("@/actions/dashboard");
 const {
   updateDefaultAccount,
@@ -74,7 +77,7 @@ const { getCurrentBudget, updateBudget } = await import("@/actions/budget");
 const { getMyRating, submitRating } = await import("@/actions/rating");
 const { saveThemePreference } = await import("@/actions/preferences");
 const { getLandingStats, uptimeSlot } = await import("@/lib/stats");
-const { monthBounds } = await import("@/lib/time");
+const { monthBounds, zonedYearMonth } = await import("@/lib/time");
 const { recordUptime, processRecurringTransaction } = await import(
   "@/lib/inngest/functions"
 );
@@ -1051,5 +1054,111 @@ describe("Dashboard summary (stat cards)", () => {
         6
       );
     }
+  });
+});
+
+describe("Cash flow and category breakdown", () => {
+  it("returns one row per month, oldest first, including empty months", async () => {
+    asTenant("alice");
+    const months = await getMonthlyCashFlow(6);
+
+    expect(months).toHaveLength(6);
+    expect(months.map((m) => m.month)).toEqual([...months.map((m) => m.month)].sort());
+
+    const { year, month } = zonedYearMonth();
+    const current = `${year}-${String(month + 1).padStart(2, "0")}`;
+    expect(months.at(-1).month).toBe(current);
+    // A month with no activity is still on the chart, at zero.
+    expect(months.every((m) => typeof m.income === "number")).toBe(true);
+    expect(months.every((m) => m.label.length === 3)).toBe(true);
+  });
+
+  it("matches this month's totals from the summary", async () => {
+    asTenant("alice");
+    const [months, summary] = await Promise.all([
+      getMonthlyCashFlow(6),
+      getDashboardSummary(),
+    ]);
+    const current = months.at(-1);
+
+    expect(current.income).toBeCloseTo(summary.monthlyIncome, 6);
+    expect(current.expense).toBeCloseTo(summary.monthlyExpenses, 6);
+  });
+
+  it("keeps one tenant's months out of another's", async () => {
+    asTenant("carol");
+    const months = await getMonthlyCashFlow(6);
+    expect(months.every((m) => m.income === 0 && m.expense === 0)).toBe(true);
+  });
+
+  it("breaks this month down by category, largest first", async () => {
+    asTenant("alice");
+    const { expenses, income } = await getCategoryBreakdown();
+
+    for (const rows of [expenses, income]) {
+      expect(rows.map((r) => r.amount)).toEqual(
+        [...rows.map((r) => r.amount)].sort((a, b) => b - a)
+      );
+      expect(rows.every((r) => r.amount > 0)).toBe(true);
+    }
+
+    const summary = await getDashboardSummary();
+    const sum = (rows) => rows.reduce((total, row) => total + row.amount, 0);
+    expect(sum(expenses)).toBeCloseTo(summary.monthlyExpenses, 6);
+    expect(sum(income)).toBeCloseTo(summary.monthlyIncome, 6);
+  });
+});
+
+describe("Dashboard page data", () => {
+  it("returns every widget's data from a single call", async () => {
+    asTenant("alice");
+    const page = await getDashboardPageData();
+
+    expect(Object.keys(page).sort()).toEqual([
+      "accounts",
+      "breakdown",
+      "budget",
+      "cashFlow",
+      "rating",
+      "summary",
+      "transactions",
+    ]);
+    expect(page.cashFlow).toHaveLength(6);
+    expect(page.accounts.length).toBeGreaterThan(0);
+  });
+
+  it("agrees with the individual actions", async () => {
+    asTenant("alice");
+    const [page, accounts, summary, cashFlow, breakdown, rating] =
+      await Promise.all([
+        getDashboardPageData(),
+        getUserAccounts(),
+        getDashboardSummary(),
+        getMonthlyCashFlow(),
+        getCategoryBreakdown(),
+        getMyRating(),
+      ]);
+
+    expect(page.accounts.map((a) => a.id)).toEqual(accounts.map((a) => a.id));
+    expect(page.summary).toEqual(summary);
+    expect(page.cashFlow).toEqual(cashFlow);
+    expect(page.breakdown).toEqual(breakdown);
+    expect(page.rating).toEqual(rating);
+  });
+
+  it("scopes everything to the calling tenant", async () => {
+    asTenant("bob");
+    const page = await getDashboardPageData();
+
+    expect(page.accounts.every((a) => a.userId === TENANTS.bob.id)).toBe(true);
+    expect(page.transactions.every((t) => t.userId === TENANTS.bob.id)).toBe(true);
+  });
+
+  it("handles a user with no accounts, budget or rating", async () => {
+    asTenant("carol");
+    const page = await getDashboardPageData();
+    expect(page.budget.budget).toBeNull();
+    expect(page.budget.currentExpenses).toBe(0);
+    expect(page.summary.savingsRate).toBeNull();
   });
 });

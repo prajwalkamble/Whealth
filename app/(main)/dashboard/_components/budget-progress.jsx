@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import useFetch from '@/hooks/use-fetch';
+import { formatCurrency } from '@/lib/format';
 import { Check, Pencil, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -21,6 +22,18 @@ const BudgetProgress = ({ initialBudget, currentExpenses }) => {
     initialBudget?.amount > 0
       ? (currentExpenses / initialBudget.amount) * 100
       : 0;
+
+  const remaining = (initialBudget?.amount ?? 0) - currentExpenses;
+
+  // Days left in the month, so "70% used" reads against how far through the
+  // month it is.
+  const today = new Date();
+  const daysInMonth = new Date(
+    today.getFullYear(),
+    today.getMonth() + 1,
+    0
+  ).getDate();
+  const daysLeft = daysInMonth - today.getDate();
 
   const {
     loading: isLoading,
@@ -97,9 +110,9 @@ const BudgetProgress = ({ initialBudget, currentExpenses }) => {
               <>
                 <CardDescription>
                   {initialBudget
-                    ? `₹${currentExpenses.toFixed(
-                        2
-                      )} of ₹${initialBudget.amount.toFixed(2)} spent`
+                    ? `${formatCurrency(currentExpenses)} of ${formatCurrency(
+                        initialBudget.amount
+                      )} spent`
                     : "No budget set"}
                 </CardDescription>
                 <Button
@@ -129,9 +142,15 @@ const BudgetProgress = ({ initialBudget, currentExpenses }) => {
                   : "bg-green-500"
               }`}
             />
-            <p className="text-xs text-muted-foreground text-right">
-              {percentageUsed.toFixed(1)}% used
-            </p>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {remaining >= 0
+                  ? `${formatCurrency(remaining)} left`
+                  : `${formatCurrency(Math.abs(remaining))} over budget`}
+                {daysLeft > 0 && ` · ${daysLeft} day${daysLeft > 1 ? "s" : ""} to go`}
+              </span>
+              <span>{percentageUsed.toFixed(1)}% used</span>
+            </div>
           </div>
         )}
       </CardContent>

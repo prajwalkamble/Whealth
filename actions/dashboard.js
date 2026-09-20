@@ -3,7 +3,14 @@
 import { enforceRateLimit } from "@/lib/arcjet";
 import { runAction } from "@/lib/action-error";
 import { requireClerkUserId } from "@/lib/session";
-import { monthBounds } from "@/lib/time";
+import {
+  APP_TIME_ZONE,
+  monthBounds,
+  monthBoundsFor,
+  monthName,
+  previousMonth,
+  zonedYearMonth,
+} from "@/lib/time";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { LANDING_STATS_TAG } from "@/lib/stats";
 import { withCurrentTenant } from "@/lib/prisma";
@@ -68,8 +75,7 @@ export async function createAccount(rawData) {
   });
 }
 
-export async function getUserAccounts() {
-  return withCurrentTenant(async (tx, userId) => {
+async function accountsFor(tx, userId) {
     const accounts = await tx.account.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
@@ -82,44 +88,123 @@ export async function getUserAccounts() {
       },
     });
     return accounts.map(serializeTransaction);
-  });
 }
 
-// The four figures on the dashboard's stat cards. Aggregated by the database
-// rather than summed from the transaction list, which is capped and would
-// quietly under-report once an account grows past the cap.
-export async function getDashboardSummary() {
-  return withCurrentTenant(async (tx, userId) => {
-    const { startOfMonth, endOfMonth } = monthBounds();
-    const monthWindow = { gte: startOfMonth, lte: endOfMonth };
+// The four figures on the dashboard's stat cards, each with the change
+// against last month. Aggregated by the database rather than summed from the
+// transaction list, which is capped and would quietly under-report once an
+// account grows past the cap.
+async function summaryFor(tx, userId) {
+    const thisMonth = monthBounds();
+    const lastMonth = monthBoundsFor(
+      ...Object.values(previousMonth(zonedYearMonth()))
+    );
 
-    const [balance, income, expenses] = await Promise.all([
+    const totals = async ({ startOfMonth, endOfMonth }) => {
+      const window = { gte: startOfMonth, lte: endOfMonth };
+      const [income, expenses] = await Promise.all([
+        tx.transaction.aggregate({
+          where: { userId, type: "INCOME", date: window },
+          _sum: { amount: true },
+        }),
+        tx.transaction.aggregate({
+          where: { userId, type: "EXPENSE", date: window },
+          _sum: { amount: true },
+        }),
+      ]);
+      return {
+        income: income._sum.amount?.toNumber() ?? 0,
+        expenses: expenses._sum.amount?.toNumber() ?? 0,
+      };
+    };
+
+    const [balance, current, previous] = await Promise.all([
       tx.account.aggregate({ where: { userId }, _sum: { balance: true } }),
-      tx.transaction.aggregate({
-        where: { userId, type: "INCOME", date: monthWindow },
-        _sum: { amount: true },
-      }),
-      tx.transaction.aggregate({
-        where: { userId, type: "EXPENSE", date: monthWindow },
-        _sum: { amount: true },
-      }),
+      totals(thisMonth),
+      totals(lastMonth),
     ]);
 
-    const monthlyIncome = income._sum.amount?.toNumber() ?? 0;
-    const monthlyExpenses = expenses._sum.amount?.toNumber() ?? 0;
+    // Null rather than 0 when nothing came in: "0% saved" would claim the
+    // user spent everything they earned, which is not what no income means.
+    const savingsRate = ({ income, expenses }) =>
+      income > 0 ? ((income - expenses) / income) * 100 : null;
 
     return {
       totalBalance: balance._sum.balance?.toNumber() ?? 0,
-      monthlyIncome,
-      monthlyExpenses,
-      // Null rather than 0 when nothing came in: "0% saved" would claim the
-      // user spent everything they earned, which is not what no income means.
-      savingsRate:
-        monthlyIncome > 0
-          ? ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100
-          : null,
+      monthlyIncome: current.income,
+      monthlyExpenses: current.expenses,
+      savingsRate: savingsRate(current),
+      // Last month, for the change shown on each card. Null where there is
+      // nothing to compare against, so the card says so instead of "+100%".
+      previous: {
+        income: previous.income,
+        expenses: previous.expenses,
+        savingsRate: savingsRate(previous),
+        net: previous.income - previous.expenses,
+      },
+      net: current.income - current.expenses,
     };
-  });
+}
+
+// Income and expenses per calendar month for the cash-flow chart. Grouped by
+// the database on the app's calendar, so a year of history is a dozen rows
+// whatever the number of transactions behind it.
+const CASH_FLOW_MONTHS = 6;
+
+async function cashFlowFor(tx, userId, months = CASH_FLOW_MONTHS) {
+    const { year, month } = zonedYearMonth();
+    // Start at the first day of the earliest month in the window.
+    const { startOfMonth: from } = monthBoundsFor(year, month - (months - 1));
+    const { endOfMonth: to } = monthBoundsFor(year, month);
+
+    const rows = await tx.$queryRaw`
+      SELECT
+        to_char(("date" AT TIME ZONE 'UTC') AT TIME ZONE ${APP_TIME_ZONE}, 'YYYY-MM') AS month,
+        COALESCE(SUM(amount) FILTER (WHERE type = 'INCOME'), 0)::float8 AS income,
+        COALESCE(SUM(amount) FILTER (WHERE type = 'EXPENSE'), 0)::float8 AS expense
+      FROM transactions
+      WHERE "userId" = ${userId} AND "date" >= ${from} AND "date" <= ${to}
+      GROUP BY 1
+      ORDER BY 1`;
+
+    // Months with no activity are absent from the result but still belong on
+    // the chart, otherwise the axis skips them.
+    const byMonth = new Map(rows.map((row) => [row.month, row]));
+    return Array.from({ length: months }, (_, index) => {
+      const at = monthBoundsFor(year, month - (months - 1 - index)).startOfMonth;
+      const { year: y, month: m } = zonedYearMonth(at);
+      const key = `${y}-${String(m + 1).padStart(2, "0")}`;
+      const row = byMonth.get(key);
+      return {
+        month: key,
+        label: monthName(y, m).slice(0, 3),
+        income: row?.income ?? 0,
+        expense: row?.expense ?? 0,
+      };
+    });
+}
+
+// This month's totals per category, for the breakdown charts.
+async function breakdownFor(tx, userId) {
+    const { startOfMonth, endOfMonth } = monthBounds();
+
+    const rows = await tx.transaction.groupBy({
+      by: ["type", "category"],
+      where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { amount: true },
+    });
+
+    const of = (type) =>
+      rows
+        .filter((row) => row.type === type)
+        .map((row) => ({
+          category: row.category,
+          amount: row._sum.amount?.toNumber() ?? 0,
+        }))
+        .filter((row) => row.amount > 0)
+        .sort((a, b) => b.amount - a.amount);
+
+    return { expenses: of("EXPENSE"), income: of("INCOME") };
 }
 
 // The dashboard overview needs exactly two things: the handful of most recent
@@ -129,8 +214,7 @@ export async function getDashboardSummary() {
 const RECENT_TRANSACTION_LIMIT = 100;
 const MONTHLY_TRANSACTION_LIMIT = 2000;
 
-export async function getDashboardData() {
-  return withCurrentTenant(async (tx, userId) => {
+async function recentTransactionsFor(tx, userId) {
     // This month on the app's calendar, matching the budget and the reports.
     const { startOfMonth } = monthBounds();
 
@@ -154,5 +238,81 @@ export async function getDashboardData() {
     return [...byId.values()]
       .sort((a, b) => b.date - a.date)
       .map(serializeTransaction);
+}
+
+// Everything the dashboard renders, in ONE transaction.
+//
+// Each helper above used to be its own action, and the page called five of
+// them at once plus the budget and the rating: seven interactive transactions
+// racing for pool connections on every load. Past a few of those, Prisma gives
+// up waiting for one and the page fails with "Unable to start a transaction in
+// the given time". One transaction also means the tenant context is set once
+// and every figure comes from the same consistent snapshot.
+export async function getDashboardPageData() {
+  return withCurrentTenant(async (tx, userId) => {
+    const accounts = await accountsFor(tx, userId);
+    const defaultAccount = accounts.find((account) => account.isDefault);
+
+    const [transactions, summary, cashFlow, breakdown] = await Promise.all([
+      recentTransactionsFor(tx, userId),
+      summaryFor(tx, userId),
+      cashFlowFor(tx, userId),
+      breakdownFor(tx, userId),
+    ]);
+
+    // Same shape getCurrentBudget returns; kept here rather than calling that
+    // action, which would open a second transaction.
+    const { startOfMonth, endOfMonth } = monthBounds();
+    const [budgetRow, budgetExpenses, rating] = await Promise.all([
+      tx.budget.findUnique({ where: { userId } }),
+      defaultAccount
+        ? tx.transaction.aggregate({
+            where: {
+              userId,
+              type: "EXPENSE",
+              accountId: defaultAccount.id,
+              date: { gte: startOfMonth, lte: endOfMonth },
+            },
+            _sum: { amount: true },
+          })
+        : null,
+      tx.rating.findUnique({ where: { userId }, select: { score: true } }),
+    ]);
+
+    return {
+      accounts,
+      transactions,
+      summary,
+      cashFlow,
+      breakdown,
+      budget: {
+        budget: budgetRow
+          ? { ...budgetRow, amount: budgetRow.amount.toNumber() }
+          : null,
+        currentExpenses: budgetExpenses?._sum.amount?.toNumber() ?? 0,
+      },
+      rating: rating?.score ?? null,
+    };
   });
+}
+
+// The same reads on their own, for pages that need one of them.
+export async function getUserAccounts() {
+  return withCurrentTenant(accountsFor);
+}
+
+export async function getDashboardSummary() {
+  return withCurrentTenant(summaryFor);
+}
+
+export async function getMonthlyCashFlow(months = CASH_FLOW_MONTHS) {
+  return withCurrentTenant((tx, userId) => cashFlowFor(tx, userId, months));
+}
+
+export async function getCategoryBreakdown() {
+  return withCurrentTenant(breakdownFor);
+}
+
+export async function getDashboardData() {
+  return withCurrentTenant(recentTransactionsFor);
 }
