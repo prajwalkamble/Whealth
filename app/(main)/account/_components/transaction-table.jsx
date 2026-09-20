@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { categoryColors } from '@/data/categories';
+import { cn } from '@/lib/utils';
 import useFetch from '@/hooks/use-fetch';
 import { format } from 'date-fns';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clock, MoreHorizontal, RefreshCw, Search, Trash2, X } from 'lucide-react';
@@ -27,7 +28,9 @@ const RECURRING_INTERVALS = {
   YEARLY: "Yearly",
 };
 
-export function TransactionTable ({ transactions }) {
+// showAccount: on /transactions the rows span accounts, so each one names
+// its own. The account page leaves it off -- every row is that account.
+export function TransactionTable ({ transactions, showAccount = false }) {
   const router = useRouter();
   const [selectedIDs, setSelectedIDs] = useState([]);
   const [sortConfig, setSortConfig] = useState({
@@ -290,6 +293,7 @@ export function TransactionTable ({ transactions }) {
                 </div>
               </TableHead>
               <TableHead>Description</TableHead>
+              {showAccount && <TableHead>Account</TableHead>}
               <TableHead
                 className="cursor-pointer"
                 onClick={() => handleSort("category")}
@@ -325,7 +329,10 @@ export function TransactionTable ({ transactions }) {
           <TableBody>
             {paginatedTransactions.length === 0? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                <TableCell
+                  colSpan={showAccount ? 8 : 7}
+                  className="text-center text-muted-foreground"
+                >
                   No Transactions Found
                 </TableCell>
               </TableRow>
@@ -342,6 +349,11 @@ export function TransactionTable ({ transactions }) {
                     {format(new Date(transaction.date), "PP")}
                   </TableCell>
                   <TableCell>{transaction.description}</TableCell>
+                  {showAccount && (
+                    <TableCell className="capitalize text-muted-foreground">
+                      {transaction.account?.name ?? "—"}
+                    </TableCell>
+                  )}
                   <TableCell className="capitalize">
                     <span
                       style={{
@@ -353,10 +365,12 @@ export function TransactionTable ({ transactions }) {
                     </span>
                   </TableCell>
                   <TableCell
-                    className="text-right font-medium"
-                    style={{
-                      color: transaction.type === "EXPENSE" ? "red" : "green"
-                    }}
+                    className={cn(
+                      "text-right font-medium",
+                      transaction.type === "EXPENSE"
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-green-600 dark:text-green-400"
+                    )}
                   >
                     {transaction.type === "EXPENSE" ? "-" : "+"}
                     &#8377;{transaction.amount.toFixed(2)}

@@ -85,6 +85,43 @@ export async function getUserAccounts() {
   });
 }
 
+// The four figures on the dashboard's stat cards. Aggregated by the database
+// rather than summed from the transaction list, which is capped and would
+// quietly under-report once an account grows past the cap.
+export async function getDashboardSummary() {
+  return withCurrentTenant(async (tx, userId) => {
+    const { startOfMonth, endOfMonth } = monthBounds();
+    const monthWindow = { gte: startOfMonth, lte: endOfMonth };
+
+    const [balance, income, expenses] = await Promise.all([
+      tx.account.aggregate({ where: { userId }, _sum: { balance: true } }),
+      tx.transaction.aggregate({
+        where: { userId, type: "INCOME", date: monthWindow },
+        _sum: { amount: true },
+      }),
+      tx.transaction.aggregate({
+        where: { userId, type: "EXPENSE", date: monthWindow },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const monthlyIncome = income._sum.amount?.toNumber() ?? 0;
+    const monthlyExpenses = expenses._sum.amount?.toNumber() ?? 0;
+
+    return {
+      totalBalance: balance._sum.balance?.toNumber() ?? 0,
+      monthlyIncome,
+      monthlyExpenses,
+      // Null rather than 0 when nothing came in: "0% saved" would claim the
+      // user spent everything they earned, which is not what no income means.
+      savingsRate:
+        monthlyIncome > 0
+          ? ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100
+          : null,
+    };
+  });
+}
+
 // The dashboard overview needs exactly two things: the handful of most recent
 // transactions per account, and this month's expenses for the category
 // breakdown. It used to load every transaction the user had ever made and ship

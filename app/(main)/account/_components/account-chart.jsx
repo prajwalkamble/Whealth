@@ -1,20 +1,18 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/ui/chart';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatCompactCurrency, formatCurrency } from '@/lib/format';
 import { format, parseISO, subDays } from 'date-fns';
 import { useMemo, useState } from 'react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Legend,
-  Rectangle,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 
 const DATE_RANGES = {
   "7D": { label: "Last 7 Days", days: 7 },
@@ -24,11 +22,12 @@ const DATE_RANGES = {
   ALL: { label: "All Time", days: null },
 };
 
-const rupees = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 2,
-});
+// Income and expense keep their own colours in every palette: green and red
+// mean something here, unlike the category colours further down the page.
+const CHART_CONFIG = {
+  income: { label: "Income", color: "hsl(142 71% 45%)" },
+  expense: { label: "Expense", color: "hsl(0 72% 51%)" },
+};
 
 // dailyTotals: [{ day: "2026-09-14", income, expense }], one row per day with
 // activity, summed by the database over the account's whole history. The
@@ -93,14 +92,14 @@ export function AccountChart ({ dailyTotals }) {
         <div className="flex justify-around mb-6 text-sm">
           <div className="text-center">
             <p className="text-muted-foreground">Total Income</p>
-            <p className="text-lg font-bold text-green-500">
-              ₹{totals.income.toFixed(2)}
+            <p className="text-lg font-bold text-green-600 dark:text-green-400">
+              {formatCurrency(totals.income)}
             </p>
           </div>
           <div className="text-center">
             <p className="text-muted-foreground">Total Expenses</p>
-            <p className="text-lg font-bold text-red-500">
-              ₹{totals.expense.toFixed(2)}
+            <p className="text-lg font-bold text-red-600 dark:text-red-400">
+              {formatCurrency(totals.expense)}
             </p>
           </div>
           <div className="text-center">
@@ -108,51 +107,60 @@ export function AccountChart ({ dailyTotals }) {
             <p
               className={`text-lg font-bold ${
                 totals.income - totals.expense >= 0
-                  ? "text-green-500"
-                  : "text-red-500"
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-red-600 dark:text-red-400"
               }`}
             >
-              ₹{(totals.income - totals.expense).toFixed(2)}
+              {formatCurrency(totals.income - totals.expense)}
             </p>
           </div>
         </div>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+
+        {filteredData.length === 0 ? (
+          <p className="py-16 text-center text-muted-foreground">
+            No transactions in this range
+          </p>
+        ) : (
+          <ChartContainer config={CHART_CONFIG} className="h-[300px] w-full">
             <BarChart
               data={filteredData}
-              margin={{
-                top: 10,
-                right: 10,
-                left: 10,
-                bottom: 0,
-              }}
+              margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" />
+              <XAxis dataKey="date" tickLine={false} axisLine={false} fontSize={12} />
               <YAxis
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(value) => `₹${value}`}
+                tickFormatter={formatCompactCurrency}
               />
               {/* Sums of paise amounts are floats: 1234.5600000000002. */}
-              <Tooltip formatter={(value) => [rupees.format(value), undefined]} />
-              <Legend />
+              <ChartTooltip
+                content={
+                  <ChartTooltipContent
+                    formatter={(value, name) => [
+                      formatCurrency(value),
+                      CHART_CONFIG[name]?.label ?? name,
+                    ]}
+                  />
+                }
+              />
+              <ChartLegend content={<ChartLegendContent />} />
               <Bar
                 dataKey="income"
-                name="Income"
-                fill="#22c55e"
+                name="income"
+                fill="var(--color-income)"
                 radius={[4, 4, 0, 0]}
               />
               <Bar
                 dataKey="expense"
-                name="Expense"
-                fill="#ef4444"
+                name="expense"
+                fill="var(--color-expense)"
                 radius={[4, 4, 0, 0]}
               />
             </BarChart>
-          </ResponsiveContainer>
-        </div>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   )

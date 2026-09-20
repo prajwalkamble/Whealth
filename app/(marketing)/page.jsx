@@ -62,17 +62,17 @@ export default async function Home() {
       <HeroSection />
 
       {statsData.length > 0 && (
-        <section className="py-20 bg-blue-50">
+        <section className="py-20 bg-muted">
           <div className="container mx-auto px-4">
             <div
               className={`grid grid-cols-2 gap-8 ${STAT_COLUMNS[statsData.length]}`}
             >
               {statsData.map((stat) => (
                 <div key={stat.label} className="text-center">
-                  <div className="text-4xl font-bold text-blue-600 mb-2">
+                  <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">
                     {stat.value}
                   </div>
-                  <div className="text-gray-600">{stat.label}</div>
+                  <div className="text-muted-foreground">{stat.label}</div>
                 </div>
               ))}
             </div>
@@ -91,7 +91,7 @@ export default async function Home() {
                 <CardContent className="space-y-4 pt-4">
                   {feature.icon}
                   <h3 className="text-xl font-semibold">{feature.title}</h3>
-                  <p className="text-gray-600">{feature.description}</p>
+                  <p className="text-muted-foreground">{feature.description}</p>
                 </CardContent>
               </Card>
             ))}
@@ -99,7 +99,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="py-20 bg-blue-50">
+      <section className="py-20 bg-muted">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-16">How It Works</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -109,7 +109,7 @@ export default async function Home() {
                   {step.icon}
                 </div>
                 <h3 className="text-xl font-semibold mb-4">{step.title}</h3>
-                <p className="text-gray-600">{step.description}</p>
+                <p className="text-muted-foreground">{step.description}</p>
               </div>
             ))}
           </div>
@@ -135,12 +135,12 @@ export default async function Home() {
                     />
                     <div className="ml-4">
                       <div className="font-semibold">{testimonial.name}</div>
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-muted-foreground">
                         {testimonial.role}
                       </div>
                     </div>
                   </div>
-                  <p className="text-gray-600">{testimonial.quote}</p>
+                  <p className="text-muted-foreground">{testimonial.quote}</p>
                 </CardContent>
               </Card>
             ))}

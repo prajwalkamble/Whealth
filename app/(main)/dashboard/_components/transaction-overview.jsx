@@ -7,20 +7,27 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/ui/chart';
+import { formatCurrency } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
-import React, { useState } from 'react'
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import React, { useMemo, useState } from 'react'
+import { Cell, Pie, PieChart } from 'recharts';
 
-const COLORS = [
-  '#FF6B6B',
-  '#4ECDC4',
-  '#45B7D1',
-  '#96CEB4',
-  '#FFEEAD',
-  '#D4A5A5',
-  '#9FA8DA',
+// The five chart variables, so the breakdown follows the colour scheme.
+const SLICE_COLORS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
 ];
 
 const DashboardOverview = ({ accounts, transactions }) => {
@@ -67,10 +74,28 @@ const DashboardOverview = ({ accounts, transactions }) => {
 
     // Format data for pie chart
     const pieChartData = Object.entries(expensesByCategory).map(
-      ([category, amount]) => ({
+      ([category, amount], index) => ({
         name: category,
         value: amount,
+        fill: SLICE_COLORS[index % SLICE_COLORS.length],
       })
+    );
+
+    // ChartContainer needs a label (and colour) per key to drive its tooltip
+    // and legend.
+    const chartConfig = useMemo(
+      () =>
+        Object.fromEntries(
+          pieChartData.map((slice, index) => [
+            slice.name,
+            {
+              label: slice.name,
+              color: SLICE_COLORS[index % SLICE_COLORS.length],
+            },
+          ])
+        ),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [JSON.stringify(pieChartData.map((s) => s.name))]
     );
 
   return (
@@ -131,7 +156,7 @@ const DashboardOverview = ({ accounts, transactions }) => {
                         ) : (
                           <ArrowUpRight className="mr-1 h-4 w-4" />
                         )}
-                        &#8377;{transaction.amount.toFixed(2)}
+                        {formatCurrency(transaction.amount)}
                       </div>
                     </div>
                   </div>
@@ -154,30 +179,31 @@ const DashboardOverview = ({ accounts, transactions }) => {
               No expenses this month
             </p>
           ) : (
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieChartData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ name, value }) => `${name}: ₹${value.toFixed(2)}`}
-                  >
-                    {pieChartData.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={COLORS[index % COLORS.length]}
-                        />
-                      ))}
-                  </Pie>
-
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+              <PieChart>
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      nameKey="name"
+                      formatter={(value, name) => [formatCurrency(value), name]}
+                    />
+                  }
+                />
+                <Pie
+                  data={pieChartData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={80}
+                  dataKey="value"
+                  nameKey="name"
+                >
+                  {pieChartData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+              </PieChart>
+            </ChartContainer>
           )}
         </CardContent>
       </Card>

@@ -1,0 +1,75 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
+import { useAuth } from "@clerk/nextjs";
+import { Check, Monitor, Moon, Sun } from "lucide-react";
+import { Button } from "./ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { saveThemePreference } from "@/actions/preferences";
+import { cn } from "@/lib/utils";
+
+const OPTIONS = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+  { value: "system", label: "System", icon: Monitor },
+];
+
+const ThemeToggle = () => {
+  const { theme, setTheme } = useTheme();
+  const { isSignedIn } = useAuth();
+  // theme is only known in the browser, so the checkmark waits for mount
+  // rather than rendering something the server did not.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const choose = (value) => {
+    setTheme(value);
+
+    // Saved against the account so the choice follows the user to another
+    // browser or device. It is a preference, not something to interrupt them
+    // over: the theme has already changed locally either way.
+    if (isSignedIn) {
+      saveThemePreference(value).catch((error) =>
+        console.error("Could not save the theme preference:", error)
+      );
+    }
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative">
+          <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <span className="sr-only">Change theme</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {OPTIONS.map(({ value, label, icon: Icon }) => (
+          <DropdownMenuItem
+            key={value}
+            className="cursor-pointer"
+            onClick={() => choose(value)}
+          >
+            <Icon className="mr-2 h-4 w-4" />
+            {label}
+            <Check
+              className={cn(
+                "ml-auto h-4 w-4",
+                mounted && theme === value ? "opacity-100" : "opacity-0"
+              )}
+            />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
+export default ThemeToggle;

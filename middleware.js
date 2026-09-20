@@ -1,10 +1,16 @@
 import arcjet, { createMiddleware, detectBot, shield } from "@arcjet/next";
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
+// Every route under app/(main). Listed one by one rather than relying on
+// "/account(.*)" to also cover "/accounts": a new page that does not match an
+// existing prefix would otherwise be reachable signed out.
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
   "/account(.*)",
+  "/accounts(.*)",
   "/transaction(.*)",
+  "/transactions(.*)",
+  "/settings(.*)",
 ]);
 
 const aj = arcjet({

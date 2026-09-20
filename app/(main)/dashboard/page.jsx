@@ -1,4 +1,5 @@
-import { getDashboardData, getUserAccounts } from '@/actions/dashboard';
+import { getDashboardData, getDashboardSummary, getUserAccounts } from '@/actions/dashboard';
+import StatCards from './_components/stat-cards';
 import CreateAccountDrawer from '@/components/create-account-drawer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Plus } from 'lucide-react';
@@ -13,9 +14,10 @@ import RatingCard from './_components/rating-card';
 async function DashboardPage() {
   // Independent queries run side by side; they used to run one after another,
   // each waiting on the previous round trip to the database.
-  const [accounts, transactions] = await Promise.all([
+  const [accounts, transactions, summary] = await Promise.all([
     getUserAccounts(),
     getDashboardData(),
+    getDashboardSummary(),
   ]);
 
   const defaultAccount = accounts?.find((account) => account.isDefault);
@@ -30,7 +32,9 @@ async function DashboardPage() {
   ]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      <StatCards summary={summary} />
+
       {/* Budget Progress */}
       {defaultAccount && (
         <BudgetProgress
@@ -47,7 +51,8 @@ async function DashboardPage() {
         />
       </Suspense>
 
-      {/* Accounts Grid */}
+      {/* Accounts. The full list lives on /accounts; the dashboard shows
+          them so a new user has somewhere to start. */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <CreateAccountDrawer>
           <Card className="hover:shadow-md transition-shadow cursor-pointer border-border">

@@ -53,9 +53,12 @@ const expectFailure = async (promise, pattern) => {
   return result;
 };
 
-const { createAccount, getUserAccounts, getDashboardData } = await import(
-  "@/actions/dashboard"
-);
+const {
+  createAccount,
+  getUserAccounts,
+  getDashboardData,
+  getDashboardSummary,
+} = await import("@/actions/dashboard");
 const {
   updateDefaultAccount,
   getAccountWithTransactions,
@@ -69,7 +72,9 @@ const {
 } = await import("@/actions/transaction");
 const { getCurrentBudget, updateBudget } = await import("@/actions/budget");
 const { getMyRating, submitRating } = await import("@/actions/rating");
+const { saveThemePreference } = await import("@/actions/preferences");
 const { getLandingStats, uptimeSlot } = await import("@/lib/stats");
+const { monthBounds } = await import("@/lib/time");
 const { recordUptime, processRecurringTransaction } = await import(
   "@/lib/inngest/functions"
 );
@@ -962,5 +967,89 @@ describe("User provisioning (checkUser)", () => {
     currentClerkProfile = profile("clerk_it_frank", { email: null, firstName: "Frank" });
     const user = await checkUser();
     expect(user).toMatchObject({ clerkUserId: "clerk_it_frank", email: null, name: "Frank" });
+  });
+});
+
+describe("Theme preference", () => {
+  it("saves the theme on the caller's own account", async () => {
+    asTenant("alice");
+    expect(await saveThemePreference("dark")).toEqual({
+      success: true,
+      data: { theme: "dark" },
+    });
+
+    const alice = await admin.user.findUnique({ where: { id: TENANTS.alice.id } });
+    const bob = await admin.user.findUnique({ where: { id: TENANTS.bob.id } });
+    expect(alice.theme).toBe("dark");
+    expect(bob.theme).toBeNull();
+  });
+
+  it("refuses a theme that is not one of the three", async () => {
+    asTenant("alice");
+    await expectFailure(saveThemePreference("solarized"), /Unknown theme/);
+  });
+
+  it("rejects an unauthenticated caller", async () => {
+    currentClerkId = null;
+    await expectFailure(saveThemePreference("light"), /Unauthorized/);
+  });
+});
+
+describe("Dashboard summary (stat cards)", () => {
+  it("matches the database's own totals for this month", async () => {
+    asTenant("alice");
+    const summary = await getDashboardSummary();
+
+    const { startOfMonth, endOfMonth } = monthBounds();
+    const window = { gte: startOfMonth, lte: endOfMonth };
+    const [balance, income, expenses] = await Promise.all([
+      admin.account.aggregate({
+        where: { userId: TENANTS.alice.id },
+        _sum: { balance: true },
+      }),
+      admin.transaction.aggregate({
+        where: { userId: TENANTS.alice.id, type: "INCOME", date: window },
+        _sum: { amount: true },
+      }),
+      admin.transaction.aggregate({
+        where: { userId: TENANTS.alice.id, type: "EXPENSE", date: window },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    expect(summary.totalBalance).toBeCloseTo(balance._sum.balance.toNumber(), 6);
+    expect(summary.monthlyIncome).toBeCloseTo(income._sum.amount?.toNumber() ?? 0, 6);
+    expect(summary.monthlyExpenses).toBeCloseTo(expenses._sum.amount?.toNumber() ?? 0, 6);
+  });
+
+  it("counts only the caller's own accounts and transactions", async () => {
+    asTenant("bob");
+    const summary = await getDashboardSummary();
+    const bobBalance = await admin.account.aggregate({
+      where: { userId: TENANTS.bob.id },
+      _sum: { balance: true },
+    });
+    expect(summary.totalBalance).toBeCloseTo(bobBalance._sum.balance.toNumber(), 6);
+  });
+
+  it("reports no savings rate when nothing came in this month", async () => {
+    // carol has an account but no transactions at all.
+    asTenant("carol");
+    const summary = await getDashboardSummary();
+    expect(summary.monthlyIncome).toBe(0);
+    // Null, not 0%: no income is not the same as having saved nothing.
+    expect(summary.savingsRate).toBeNull();
+  });
+
+  it("derives the savings rate from this month's income and expenses", async () => {
+    asTenant("alice");
+    const { monthlyIncome, monthlyExpenses, savingsRate } =
+      await getDashboardSummary();
+    if (monthlyIncome > 0) {
+      expect(savingsRate).toBeCloseTo(
+        ((monthlyIncome - monthlyExpenses) / monthlyIncome) * 100,
+        6
+      );
+    }
   });
 });

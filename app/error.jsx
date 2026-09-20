@@ -17,7 +17,7 @@ export default function Error({ error, reset }) {
       <h1 className="gradient-title mb-4 text-5xl font-bold">
         Something went wrong
       </h1>
-      <p className="mb-8 max-w-md text-gray-600">
+      <p className="mb-8 max-w-md text-muted-foreground">
         We couldn&apos;t load this page. It&apos;s usually temporary, so please
         try again. If it keeps happening, let us know and quote the reference
         below.

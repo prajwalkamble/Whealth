@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  themeInputSchema,
   accountInputSchema,
   transactionInputSchema,
   budgetInputSchema,
@@ -100,5 +101,15 @@ describe("budgetInputSchema", () => {
   it("rejects zero and negative", () => {
     expect(() => parseOrThrow(budgetInputSchema, 0)).toThrow(/greater than zero/i);
     expect(() => parseOrThrow(budgetInputSchema, -5)).toThrow(/greater than zero/i);
+  });
+});
+
+describe("themeInputSchema", () => {
+  it.each(["light", "dark", "system"])("accepts %s", (theme) => {
+    expect(themeInputSchema.safeParse(theme).success).toBe(true);
+  });
+
+  it.each(["", "Dark", "solarized", null, 1])("rejects %s", (theme) => {
+    expect(themeInputSchema.safeParse(theme).success).toBe(false);
   });
 });
