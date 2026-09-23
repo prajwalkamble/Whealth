@@ -10,6 +10,7 @@ import {
   Settings,
   Wallet,
 } from "lucide-react";
+import { usePreferences } from "@/components/preferences-provider";
 import {
   Sidebar,
   SidebarContent,
@@ -47,9 +48,15 @@ const isActive = (pathname, url) => {
 
 const AppSidebar = () => {
   const pathname = usePathname();
+  // Sidebar Variant and Sidebar Collapse from the customiser. These are props
+  // rather than CSS, so they come from the provider.
+  const { preferences } = usePreferences();
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar
+      variant={preferences.sidebarVariant}
+      collapsible={preferences.sidebarCollapsible}
+    >
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>

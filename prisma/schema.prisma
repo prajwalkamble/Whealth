@@ -28,7 +28,10 @@ model User {
   rating       Rating?
   // Light / dark / system, chosen in the app and kept on the account so the
   // choice follows the user to another browser or device.
-  theme        String?
+  // Appearance settings from lib/preferences.js (theme colour, chart colours,
+  // fonts, scale, radius, colour schema, layout, sidebar). One column rather
+  // than ten, since they are only ever read and written together.
+  preferences  Json?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

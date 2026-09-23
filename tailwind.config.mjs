@@ -61,6 +61,12 @@ const config = {
   			}
   		},
   		borderRadius: {
+  			// All of these follow --radius, which the Radius setting changes.
+  			// Only lg/md/sm used to, so Card (rounded-xl) ignored the setting
+  			// while the customiser's own rounded-md buttons followed it.
+  			'3xl': 'calc(var(--radius) + 12px)',
+  			'2xl': 'calc(var(--radius) + 8px)',
+  			xl: 'calc(var(--radius) + 4px)',
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'

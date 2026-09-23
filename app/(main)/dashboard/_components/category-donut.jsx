@@ -2,59 +2,72 @@
 
 import { useMemo } from "react";
 import { Cell, Label, Pie, PieChart } from "recharts";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { categoryColors, defaultCategories } from "@/data/categories";
+import {
+  SERIES_COLORS,
+  Widget,
+  WidgetContent,
+  WidgetHeader,
+} from "@/components/dashboard/widget";
+import { defaultCategories } from "@/data/categories";
 import { formatCurrency } from "@/lib/format";
-
-// Falls back to the five theme chart colours, so a category added later still
-// gets one and the whole chart follows the colour scheme.
-const FALLBACK = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-];
 
 const LABELS = Object.fromEntries(
   defaultCategories.map((category) => [category.id, category.name])
 );
 
-const CategoryDonut = ({ title, description, rows, emptyLabel }) => {
-  const { slices, total, config } = useMemo(() => {
+// Four legend tiles, as in the reference. With more categories than that, the
+// smallest are folded into "Other" so the grid stays even.
+const LEGEND_TILES = 4;
+
+const CategoryDonut = ({ title, rows, emptyLabel }) => {
+  const { slices, tiles, total, config } = useMemo(() => {
     const total = rows.reduce((sum, row) => sum + row.amount, 0);
     const slices = rows.map((row, index) => ({
       key: row.category,
       name: LABELS[row.category] ?? row.category,
       value: row.amount,
       share: total > 0 ? (row.amount / total) * 100 : 0,
-      fill: categoryColors[row.category] ?? FALLBACK[index % FALLBACK.length],
+      fill: SERIES_COLORS[index % SERIES_COLORS.length],
     }));
+
+    let tiles = slices;
+    if (slices.length > LEGEND_TILES) {
+      const rest = slices.slice(LEGEND_TILES - 1);
+      tiles = [
+        ...slices.slice(0, LEGEND_TILES - 1),
+        {
+          key: "__other",
+          name: "Other",
+          value: rest.reduce((sum, slice) => sum + slice.value, 0),
+          share: rest.reduce((sum, slice) => sum + slice.share, 0),
+          fill: "hsl(var(--muted-foreground))",
+        },
+      ];
+    }
+
     const config = Object.fromEntries(
       slices.map((slice) => [slice.name, { label: slice.name, color: slice.fill }])
     );
-    return { slices, total, config };
+    return { slices, tiles, total, config };
   }, [rows]);
 
   return (
-    <Card className="h-full">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Widget className="h-full">
+      <WidgetHeader
+        title={title}
+        action={
+          <span className="text-xs text-muted-foreground">This month</span>
+        }
+      />
+      <WidgetContent className="flex flex-col gap-5">
         {slices.length === 0 ? (
-          <p className="py-16 text-center text-muted-foreground">{emptyLabel}</p>
+          <p className="py-16 text-center text-sm text-muted-foreground">
+            {emptyLabel}
+          </p>
         ) : (
           <>
-            <ChartContainer config={config} className="mx-auto h-[220px] w-full">
+            <ChartContainer config={config} className="mx-auto aspect-square h-[210px]">
               <PieChart>
                 <ChartTooltip
                   content={
@@ -68,10 +81,12 @@ const CategoryDonut = ({ title, description, rows, emptyLabel }) => {
                   data={slices}
                   dataKey="value"
                   nameKey="name"
-                  innerRadius={60}
-                  outerRadius={90}
-                  paddingAngle={2}
-                  strokeWidth={2}
+                  innerRadius={62}
+                  outerRadius={96}
+                  // One continuous ring, as in the reference: no padding
+                  // angle and no stroke, so slices meet edge to edge.
+                  paddingAngle={0}
+                  strokeWidth={0}
                 >
                   {slices.map((slice) => (
                     <Cell key={slice.key} fill={slice.fill} />
@@ -82,17 +97,17 @@ const CategoryDonut = ({ title, description, rows, emptyLabel }) => {
                         <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle">
                           <tspan
                             x={viewBox.cx}
-                            y={viewBox.cy - 6}
-                            className="fill-foreground text-lg font-bold"
+                            y={viewBox.cy + 2}
+                            className="fill-foreground text-xl font-bold"
                           >
                             {formatCurrency(total)}
                           </tspan>
                           <tspan
                             x={viewBox.cx}
-                            y={viewBox.cy + 14}
+                            y={viewBox.cy + 20}
                             className="fill-muted-foreground text-xs"
                           >
-                            this month
+                            total
                           </tspan>
                         </text>
                       ) : null
@@ -102,29 +117,29 @@ const CategoryDonut = ({ title, description, rows, emptyLabel }) => {
               </PieChart>
             </ChartContainer>
 
-            {/* The reference dashboard lists each slice with its share; the
-                chart alone makes small categories hard to compare. */}
-            <ul className="mt-2 space-y-2">
-              {slices.slice(0, 5).map((slice) => (
-                <li key={slice.key} className="flex items-center gap-2 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              {tiles.map((tile) => (
+                <div
+                  key={tile.key}
+                  className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm"
+                >
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: slice.fill }}
+                    style={{ backgroundColor: tile.fill }}
                   />
-                  <span className="truncate capitalize">{slice.name}</span>
-                  <span className="ml-auto shrink-0 text-muted-foreground">
-                    {slice.share.toFixed(0)}%
+                  <span className="truncate capitalize text-muted-foreground">
+                    {tile.name}
                   </span>
-                  <span className="w-24 shrink-0 text-right font-medium">
-                    {formatCurrency(slice.value)}
+                  <span className="ml-auto font-medium tabular-nums">
+                    {tile.share.toFixed(0)}%
                   </span>
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </>
         )}
-      </CardContent>
-    </Card>
+      </WidgetContent>
+    </Widget>
   );
 };
 

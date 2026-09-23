@@ -102,12 +102,6 @@ export const transactionInputSchema = z
 
 export const budgetInputSchema = z.coerce.number().pipe(positiveAmount);
 
-// errorMap, not invalid_type_error: the latter only covers a non-string, so a
-// string outside the list reported zod's own wording instead.
-export const themeInputSchema = z.enum(["light", "dark", "system"], {
-  errorMap: () => ({ message: "Unknown theme" }),
-});
-
 export const ratingInputSchema = z.coerce
   .number({ invalid_type_error: "Rating must be a number" })
   .int("Rating must be a whole number of stars")

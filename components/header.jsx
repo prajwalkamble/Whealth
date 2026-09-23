@@ -1,9 +1,11 @@
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
+import UserAvatar from "./user-avatar";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "./ui/button";
 import { LayoutDashboard, PenBox } from "lucide-react";
 import ThemeToggle from "./theme-toggle";
+import ThemeCustomizer from "./theme-customizer";
 
 // No user sync here. This renders on every route including the public landing
 // page, so syncing the Clerk user from here meant a Clerk lookup plus a Prisma
@@ -42,6 +44,7 @@ const Header = () => {
             </Button>
           </SignedIn>
 
+          <ThemeCustomizer />
           <ThemeToggle />
 
           <SignedOut>
@@ -50,11 +53,7 @@ const Header = () => {
             </SignInButton>
           </SignedOut>
           <SignedIn>
-            <UserButton appearance={{
-              elements:{
-                avatarBox: "w-10 h-10",
-              }
-            }} />
+            <UserAvatar size="h-10 w-10" />
           </SignedIn>
         </div>
       </nav>

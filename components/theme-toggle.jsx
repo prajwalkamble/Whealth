@@ -11,7 +11,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
-import { saveThemePreference } from "@/actions/preferences";
+import { savePreferences } from "@/actions/preferences";
+import { usePreferences } from "./preferences-provider";
 import { cn } from "@/lib/utils";
 
 const OPTIONS = [
@@ -22,6 +23,7 @@ const OPTIONS = [
 
 const ThemeToggle = () => {
   const { theme, setTheme } = useTheme();
+  const { setPreference } = usePreferences();
   const { isSignedIn } = useAuth();
   // theme is only known in the browser, so the checkmark waits for mount
   // rather than rendering something the server did not.
@@ -30,16 +32,31 @@ const ThemeToggle = () => {
 
   const choose = (value) => {
     setTheme(value);
+    const next = setPreference("colorSchema", value);
 
     // Saved against the account so the choice follows the user to another
     // browser or device. It is a preference, not something to interrupt them
     // over: the theme has already changed locally either way.
-    if (isSignedIn) {
-      saveThemePreference(value).catch((error) =>
+    if (isSignedIn && next) {
+      savePreferences(next).catch((error) =>
         console.error("Could not save the theme preference:", error)
       );
     }
   };
+
+  // Until mounted, render a plain button rather than the dropdown. Radix
+  // builds its ids with useId, and when the server's tree and the first
+  // client tree differ at all those ids diverge, which React reports as a
+  // hydration failure and then trips over while patching the DOM. A
+  // placeholder of the same size keeps the header from shifting.
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" className="relative" disabled aria-hidden>
+        <Sun className="h-5 w-5" />
+        <span className="sr-only">Change theme</span>
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu>

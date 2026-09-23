@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Widget,
+  WidgetContent,
+  WidgetHeader,
+} from "@/components/dashboard/widget";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import CreateAccountDrawer from "@/components/create-account-drawer";
@@ -19,35 +17,39 @@ const AccountsPanel = ({ accounts }) => {
   const total = accounts.reduce((sum, account) => sum + account.balance, 0);
 
   return (
-    <Card className="h-full">
-      <CardHeader className="flex flex-row items-start justify-between space-y-0">
-        <div>
-          <CardTitle>My Accounts</CardTitle>
-          <CardDescription>
-            {accounts.length === 0
-              ? "No accounts yet"
-              : `${formatCurrency(total)} across ${accounts.length} account${accounts.length > 1 ? "s" : ""}`}
-          </CardDescription>
-        </div>
-        <CreateAccountDrawer>
-          <Button variant="outline" size="sm">
-            <Plus className="mr-1 h-4 w-4" />
-            Add
-          </Button>
-        </CreateAccountDrawer>
-      </CardHeader>
-      <CardContent>
+    <Widget className="w-full">
+      <WidgetHeader
+        title={
+          <>
+            Accounts
+            {accounts.length > 0 && (
+              <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                {formatCurrency(total)} total
+              </span>
+            )}
+          </>
+        }
+        action={
+          <CreateAccountDrawer>
+            <Button variant="outline" size="sm">
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </Button>
+          </CreateAccountDrawer>
+        }
+      />
+      <WidgetContent className="p-2">
         {accounts.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             Add an account to start tracking.
           </p>
         ) : (
-          <ul className="space-y-1">
+          <ul className="grid gap-1">
             {accounts.map((account) => (
               <li key={account.id}>
                 <Link
                   href={`/account/${account.id}`}
-                  className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-accent"
+                  className="flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-accent"
                 >
                   <div className="min-w-0 flex-1">
                     {/* div, not p: Badge renders a div, and a div inside a
@@ -67,7 +69,7 @@ const AccountsPanel = ({ accounts }) => {
                   </div>
                   <span
                     className={cn(
-                      "shrink-0 text-sm font-semibold",
+                      "shrink-0 text-sm font-semibold tabular-nums",
                       account.balance < 0 && "text-red-600 dark:text-red-400"
                     )}
                   >
@@ -78,8 +80,8 @@ const AccountsPanel = ({ accounts }) => {
             ))}
           </ul>
         )}
-      </CardContent>
-    </Card>
+      </WidgetContent>
+    </Widget>
   );
 };
 

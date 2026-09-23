@@ -118,11 +118,42 @@ async function summaryFor(tx, userId) {
       };
     };
 
-    const [balance, current, previous] = await Promise.all([
+    const [balance, current, previous, accounts, sinceFirst] = await Promise.all([
       tx.account.aggregate({ where: { userId }, _sum: { balance: true } }),
       totals(thisMonth),
       totals(lastMonth),
+      tx.account.findMany({
+        where: { userId },
+        select: { id: true, balance: true, createdAt: true },
+      }),
+      tx.transaction.groupBy({
+        by: ["accountId", "type"],
+        where: { userId, date: { gte: thisMonth.startOfMonth } },
+        _sum: { amount: true },
+      }),
     ]);
+
+    // The balance on the 1st, for the Total Balance change. Only accounts
+    // that existed on the 1st count: an account opened later in the month
+    // had no balance then, and working one back from today's figure lands on
+    // its opening balance -- whatever was typed at creation -- which made a
+    // ₹5,000 opening read as the starting point and today's total as +1,142%.
+    const netSinceFirst = new Map();
+    for (const row of sinceFirst) {
+      const amount = row._sum.amount?.toNumber() ?? 0;
+      const signed = row.type === "INCOME" ? amount : -amount;
+      netSinceFirst.set(row.accountId, (netSinceFirst.get(row.accountId) ?? 0) + signed);
+    }
+    const existing = accounts.filter((a) => a.createdAt < thisMonth.startOfMonth);
+    const balanceSince = existing.length
+      ? {
+          start: existing.reduce(
+            (sum, a) => sum + a.balance.toNumber() - (netSinceFirst.get(a.id) ?? 0),
+            0
+          ),
+          now: existing.reduce((sum, a) => sum + a.balance.toNumber(), 0),
+        }
+      : null;
 
     // Null rather than 0 when nothing came in: "0% saved" would claim the
     // user spent everything they earned, which is not what no income means.
@@ -143,6 +174,9 @@ async function summaryFor(tx, userId) {
         net: previous.income - previous.expenses,
       },
       net: current.income - current.expenses,
+      // null when every account was opened this month: there is no earlier
+      // balance to measure against.
+      balanceSince,
     };
 }
 

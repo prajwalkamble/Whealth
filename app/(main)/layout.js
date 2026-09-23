@@ -1,8 +1,9 @@
 import { cookies } from "next/headers";
-import { UserButton } from "@clerk/nextjs";
 import { checkUser } from "@/lib/checkUser";
-import ThemeSync from "@/components/theme-sync";
+import PreferencesSync from "@/components/preferences-sync";
 import ThemeToggle from "@/components/theme-toggle";
+import ThemeCustomizer from "@/components/theme-customizer";
+import UserAvatar from "@/components/user-avatar";
 import AppSidebar from "@/components/app-sidebar";
 import PageBreadcrumb from "@/components/page-breadcrumb";
 import { Separator } from "@/components/ui/separator";
@@ -28,22 +29,26 @@ const MainLayout = async ({ children }) => {
     <SidebarProvider defaultOpen={defaultOpen}>
       {/* Applies the theme saved on the account, for a browser that has not
           seen this user before. */}
-      <ThemeSync preferred={user?.theme} />
+      <PreferencesSync saved={user?.preferences} />
 
       <AppSidebar />
 
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur-md">
+        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur-md md:px-6">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <PageBreadcrumb />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-1">
+            <ThemeCustomizer />
             <ThemeToggle />
-            <UserButton appearance={{ elements: { avatarBox: "w-8 h-8" } }} />
+            <UserAvatar />
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">{children}</div>
+        {/* app-content: the Content Layout setting centres this column. */}
+        <div className="app-content flex flex-1 flex-col gap-6 p-4 md:p-6">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

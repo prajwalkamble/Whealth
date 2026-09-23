@@ -13,7 +13,7 @@ export default async function AccountsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Accounts</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Accounts</h1>
           <p className="text-sm text-muted-foreground">
             {accounts.length === 0
               ? "No accounts yet."

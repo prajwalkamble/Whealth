@@ -1,7 +1,7 @@
 "use client";
 
 import { submitRating } from '@/actions/rating';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Widget, WidgetContent, WidgetHeader } from '@/components/dashboard/widget';
 import useFetch from '@/hooks/use-fetch';
 import { cn } from '@/lib/utils';
 import { Star } from 'lucide-react';
@@ -35,16 +35,14 @@ const RatingCard = ({ initialRating }) => {
   const shown = hovered || pending || rating || 0;
 
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <CardTitle>Enjoying Whealth?</CardTitle>
-          <CardDescription className="mt-1">
-            {rating
-              ? `You rated us ${rating}/5. Tap a star to change it.`
-              : "Rate your experience. It counts towards the rating on our home page."}
-          </CardDescription>
-        </div>
+    <Widget className="h-full">
+      <WidgetHeader title="Enjoying Whealth?" />
+      <WidgetContent className="flex flex-col items-start gap-3">
+        <p className="text-sm text-muted-foreground">
+          {rating
+            ? `You rated us ${rating}/5. Tap a star to change it.`
+            : "Rate your experience. It counts towards the rating on our home page."}
+        </p>
 
         <div
           role="radiogroup"
@@ -75,8 +73,8 @@ const RatingCard = ({ initialRating }) => {
             </button>
           ))}
         </div>
-      </CardHeader>
-    </Card>
+      </WidgetContent>
+    </Widget>
   );
 };
 

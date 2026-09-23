@@ -22,11 +22,13 @@ const DATE_RANGES = {
   ALL: { label: "All Time", days: null },
 };
 
-// Income and expense keep their own colours in every palette: green and red
-// mean something here, unlike the category colours further down the page.
+// Both series come from the chosen chart ramp, so the Chart Colors setting
+// reaches every chart. Income takes the strongest shade and expense a pale
+// one, the same strong/pale pairing the reference uses, so the two are easy
+// to tell apart in every ramp and in both themes.
 const CHART_CONFIG = {
-  income: { label: "Income", color: "hsl(142 71% 45%)" },
-  expense: { label: "Expense", color: "hsl(0 72% 51%)" },
+  income: { label: "Income", color: "hsl(var(--chart-1))" },
+  expense: { label: "Expense", color: "hsl(var(--chart-4))" },
 };
 
 // dailyTotals: [{ day: "2026-09-14", income, expense }], one row per day with

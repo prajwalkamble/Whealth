@@ -75,7 +75,8 @@ const {
 } = await import("@/actions/transaction");
 const { getCurrentBudget, updateBudget } = await import("@/actions/budget");
 const { getMyRating, submitRating } = await import("@/actions/rating");
-const { saveThemePreference } = await import("@/actions/preferences");
+const { savePreferences } = await import("@/actions/preferences");
+const { DEFAULT_PREFERENCES } = await import("@/lib/preferences");
 const { getLandingStats, uptimeSlot } = await import("@/lib/stats");
 const { monthBounds, zonedYearMonth } = await import("@/lib/time");
 const { recordUptime, processRecurringTransaction } = await import(
@@ -973,28 +974,46 @@ describe("User provisioning (checkUser)", () => {
   });
 });
 
-describe("Theme preference", () => {
-  it("saves the theme on the caller's own account", async () => {
+describe("Appearance preferences", () => {
+  it("saves the whole set on the caller's own account", async () => {
     asTenant("alice");
-    expect(await saveThemePreference("dark")).toEqual({
-      success: true,
-      data: { theme: "dark" },
-    });
+    const chosen = {
+      ...DEFAULT_PREFERENCES,
+      themeColor: "violet",
+      colorSchema: "dark",
+      radius: "1",
+      sidebarVariant: "inset",
+    };
+
+    expect(await savePreferences(chosen)).toEqual({ success: true, data: chosen });
 
     const alice = await admin.user.findUnique({ where: { id: TENANTS.alice.id } });
     const bob = await admin.user.findUnique({ where: { id: TENANTS.bob.id } });
-    expect(alice.theme).toBe("dark");
-    expect(bob.theme).toBeNull();
+    expect(alice.preferences).toEqual(chosen);
+    expect(bob.preferences).toBeNull();
   });
 
-  it("refuses a theme that is not one of the three", async () => {
+  it("stores defaults in place of unknown values, and drops unknown keys", async () => {
     asTenant("alice");
-    await expectFailure(saveThemePreference("solarized"), /Unknown theme/);
+    const result = await savePreferences({
+      themeColor: "emerald",
+      radius: "9rem",
+      dropTable: "users",
+    });
+
+    expect(result.data.themeColor).toBe("emerald");
+    expect(result.data.radius).toBe(DEFAULT_PREFERENCES.radius);
+    expect(result.data.dropTable).toBeUndefined();
+
+    const alice = await admin.user.findUnique({ where: { id: TENANTS.alice.id } });
+    expect(Object.keys(alice.preferences).sort()).toEqual(
+      Object.keys(DEFAULT_PREFERENCES).sort()
+    );
   });
 
   it("rejects an unauthenticated caller", async () => {
     currentClerkId = null;
-    await expectFailure(saveThemePreference("light"), /Unauthorized/);
+    await expectFailure(savePreferences(DEFAULT_PREFERENCES), /Unauthorized/);
   });
 });
 
