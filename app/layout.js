@@ -1,4 +1,5 @@
 import {
+  Caveat,
   Geist,
   Hedvig_Letters_Serif,
   Inter,
@@ -51,6 +52,10 @@ const geist = Geist({ subsets: ["latin"], display: "swap", variable: "--font-gei
 const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], display: "swap", variable: "--font-jakarta" });
 const outfit = Outfit({ subsets: ["latin"], display: "swap", variable: "--font-outfit" });
 const kumbh = Kumbh_Sans({ subsets: ["latin"], display: "swap", variable: "--font-kumbh" });
+// Only used for the handwritten aside on the pricing page. Declaring a family
+// does not download it -- the browser fetches a webfont only when something is
+// actually set in it.
+const caveat = Caveat({ subsets: ["latin"], display: "swap", variable: "--font-caveat" });
 const hedvig = Hedvig_Letters_Serif({
   subsets: ["latin"],
   display: "swap",
@@ -70,6 +75,7 @@ const fontVariables = [
   outfit,
   kumbh,
   hedvig,
+  caveat,
 ]
   .map((font) => font.variable)
   .join(" ");

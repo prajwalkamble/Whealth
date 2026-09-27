@@ -38,20 +38,14 @@ const HeroSection = () => {
           An AI-powered Financial Management platform that helps you track,
           analyze, and optimize your spendings with real-time insights.
         </p>
-        <div className="flex justify-center space-x-4">
+        {/* One call to action here. "Explore WHealthOS" lives in the header,
+            where it is on screen the whole way down the page, so repeating it
+            below only split the choice in two. */}
+        <div className="flex justify-center">
           {/* asChild: the button renders as the link itself. A <button>
               nested inside an <a> is invalid HTML. */}
           <Button size="lg" className="px-8" asChild>
             <Link href="/dashboard">Get Started</Link>
-          </Button>
-          <Button size="lg" variant="outline" className="px-8" asChild>
-            <Link
-              href="https://github.com/prajwalkamble/Whealth"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Watch Demo
-            </Link>
           </Button>
         </div>
         <div className="hero-image-wrapper">

@@ -1,6 +1,7 @@
 "use server";
 
 import { withCurrentTenant } from "@/lib/prisma";
+import { serializeDecimals } from "@/lib/queries";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { LANDING_STATS_TAG } from "@/lib/stats";
 import { generateContent } from "@/lib/ai/gemini";
@@ -14,13 +15,10 @@ import {
   parseOrThrow,
 } from "@/app/lib/schema";
 
-const serializeAmount = (obj) => ({
-  ...obj,
-  amount: obj.amount.toNumber(),
-  ...(obj.account
-    ? { account: { ...obj.account, balance: obj.account.balance.toNumber() } }
-    : {}),
-});
+// One shared serializer (lib/queries.js), rather than a copy per action file.
+// This module had its own, which assumed a joined account always carried a
+// balance; the shared one converts only the columns a query actually selected.
+const serializeAmount = serializeDecimals;
 
 // The signed change a transaction applies to its account balance.
 const balanceEffect = (type, amount) =>
@@ -184,6 +182,15 @@ export async function updateTransaction(id, rawData) {
 // scope and returned every user's transactions.
 const USER_TRANSACTION_FILTERS = ["accountId", "type", "category", "isRecurring"];
 
+// The /transactions table filters, sorts and pages in the browser, so it needs
+// the rows up front -- but not all of them. This used to be an unbounded
+// findMany: every transaction the user had ever made was serialised and shipped
+// on each page load. The cap matches the account page's, and the caller is told
+// when it bit rather than being left to believe it has the lot.
+// Not exported: a "use server" module may only export async functions, and the
+// limit reaches the caller on the result instead.
+const USER_TRANSACTION_LIMIT = 500;
+
 // Get User Transactions
 export async function getUserTransactions(query = {}) {
   return runAction(async () => {
@@ -195,23 +202,34 @@ export async function getUserTransactions(query = {}) {
       }
     }
 
-    const transactions = await withCurrentTenant(async (tx, userId) => {
-      const rows = await tx.transaction.findMany({
-        // userId last, so nothing in filters can replace it.
-        where: { ...filters, userId },
-        include: {
-          account: true,
-        },
-        orderBy: {
-          date: "desc",
-        },
-      });
+    const result = await withCurrentTenant(async (tx, userId) => {
+      // userId last, so nothing in filters can replace it.
+      const where = { ...filters, userId };
+
+      const [rows, total] = await Promise.all([
+        tx.transaction.findMany({
+          where,
+          // The table shows the account's name and nothing else from it;
+          // including the whole row repeated every column of every account
+          // on every transaction.
+          include: { account: { select: { id: true, name: true } } },
+          orderBy: { date: "desc" },
+          take: USER_TRANSACTION_LIMIT,
+        }),
+        tx.transaction.count({ where }),
+      ]);
 
       // Decimal instances cannot cross the server/client boundary.
-      return rows.map(serializeAmount);
+      return { rows: rows.map(serializeAmount), total };
     });
 
-    return { success: true, data: transactions };
+    return {
+      success: true,
+      data: result.rows,
+      total: result.total,
+      limit: USER_TRANSACTION_LIMIT,
+      truncated: result.total > result.rows.length,
+    };
   });
 }
 

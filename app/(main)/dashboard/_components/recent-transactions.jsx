@@ -17,7 +17,12 @@ const initialOf = (text) => (text?.trim()?.[0] ?? "•").toUpperCase();
 
 // Recent activity as a table, like the reference: columns line up, so the eye
 // can run down dates or amounts without re-reading each row.
-const RecentTransactions = ({ transactions, accounts, limit = 7 }) => {
+const RecentTransactions = ({
+  transactions,
+  accounts,
+  limit = 7,
+  viewAllHref = "/transactions",
+}) => {
   const accountNames = new Map(accounts.map((a) => [a.id, a.name]));
   const rows = transactions.slice(0, limit);
 
@@ -27,7 +32,7 @@ const RecentTransactions = ({ transactions, accounts, limit = 7 }) => {
         title="Transactions"
         action={
           <Button variant="outline" size="sm" asChild>
-            <Link href="/transactions">View All</Link>
+            <Link href={viewAllHref}>View All</Link>
           </Button>
         }
       />
@@ -41,7 +46,7 @@ const RecentTransactions = ({ transactions, accounts, limit = 7 }) => {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
-                <th className="px-5 py-3 font-medium">Transaction</th>
+                <th className="w-full px-5 py-3 font-medium">Transaction</th>
                 <th className="hidden px-5 py-3 font-medium md:table-cell">Date</th>
                 <th className="hidden px-5 py-3 font-medium sm:table-cell">Type</th>
                 <th className="px-5 py-3 text-right font-medium">Amount</th>
@@ -56,7 +61,7 @@ const RecentTransactions = ({ transactions, accounts, limit = 7 }) => {
                   transaction.category;
                 return (
                   <tr key={transaction.id} className="transition-colors hover:bg-muted/40">
-                    <td className="px-5 py-3">
+                    <td className="max-w-0 px-5 py-3">
                       <div className="flex items-center gap-3">
                         <span
                           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"

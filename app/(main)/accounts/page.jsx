@@ -1,4 +1,4 @@
-import { getUserAccounts } from "@/actions/dashboard";
+import { getUserAccounts } from "@/lib/queries";
 import AccountCard from "../dashboard/_components/account-card";
 import CreateAccountDrawer from "@/components/create-account-drawer";
 import { Card, CardContent } from "@/components/ui/card";

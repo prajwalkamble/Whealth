@@ -1,9 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
-import { useAuth } from "@clerk/nextjs";
-import { Check, Palette, RotateCcw, Shuffle } from "lucide-react";
+import { Palette } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Sheet,
@@ -14,163 +11,29 @@ import {
   SheetTrigger,
 } from "./ui/sheet";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
-import { usePreferences } from "./preferences-provider";
-import { savePreferences } from "@/actions/preferences";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "./ui/tooltip";
 import {
-  CHART_COLORS,
-  COLOR_SCHEMAS,
-  CONTENT_LAYOUTS,
-  DEFAULT_PREFERENCES,
-  DISPLAY_FONTS,
-  randomPreferences,
-  resetPreferences,
-  FONTS,
-  RADII,
-  SCALES,
-  SIDEBAR_COLLAPSIBLE,
-  SIDEBAR_VARIANTS,
-  THEME_COLORS,
-} from "@/lib/preferences";
-import { cn } from "@/lib/utils";
+  AppearanceActions,
+  AppearanceSections,
+  useAppearance,
+} from "./appearance-controls";
 
-const Section = ({ title, children }) => (
-  <section className="space-y-2">
-    <h3 className="text-sm font-medium">{title}</h3>
-    {children}
-  </section>
-);
-
-// The five shades of a chart ramp as circles, lightest on the left to darkest
-// on the right, so each option shows what its charts will actually look like.
-// The ramp is stored darkest first (series 1 is the strongest), so it is
-// reversed for display.
-const ShadeStrip = ({ shades }) => (
-  <span className="flex shrink-0 items-center -space-x-1">
-    {[...shades].reverse().map((colour) => (
-      <span
-        key={colour}
-        className="h-4 w-4 rounded-full border-2 border-background"
-        style={{ backgroundColor: colour }}
-      />
-    ))}
-  </span>
-);
-
-const Dropdown = ({
-  label,
-  value,
-  options,
-  onChange,
-  withSwatch = false,
-  withShades = false,
-}) => (
-  <Select value={value} onValueChange={onChange}>
-    <SelectTrigger aria-label={label}>
-      <SelectValue placeholder={label} />
-    </SelectTrigger>
-    <SelectContent className="max-h-72">
-      {options.map((option) => (
-        <SelectItem key={option.id} value={option.id} className="cursor-pointer">
-          <span className="flex items-center gap-2">
-            {withShades && option.shades && <ShadeStrip shades={option.shades} />}
-            {withSwatch && !withShades && (
-              <span
-                className="h-3.5 w-3.5 shrink-0 rounded-full border"
-                style={{ backgroundColor: option.swatch }}
-              />
-            )}
-            {option.label}
-          </span>
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
-);
-
-const Choice = ({ selected, onClick, className, children, label }) => (
-  <button
-    type="button"
-    role="radio"
-    aria-checked={selected}
-    aria-label={label}
-    onClick={onClick}
-    className={cn(
-      "flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-accent",
-      selected && "border-primary ring-1 ring-primary",
-      className
-    )}
-  >
-    {children}
-  </button>
-);
-
-// The customizer behind the palette icon in the top bar. Every choice applies
-// immediately and, when signed in, is saved to the account so it follows the
-// user to another browser. A failed save leaves the local change in place
-// rather than interrupting.
+// The customizer behind the palette icon in the top bar. The controls
+// themselves live in appearance-controls.jsx, shared with the Appearance card
+// in Settings so the two cannot drift apart.
 const ThemeCustomizer = () => {
-  const { theme, setTheme } = useTheme();
-  const { preferences, setPreference, setPreferences, mounted: prefsMounted } =
-    usePreferences();
-  const { isSignedIn } = useAuth();
+  const appearance = useAppearance();
 
-  // The theme is only known in the browser, so selected states wait for mount
-  // rather than rendering something the server did not.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  const persist = (next) => {
-    if (!isSignedIn) return;
-    savePreferences(next).catch((error) =>
-      console.error("Could not save appearance settings:", error)
-    );
-  };
-
-  const choose = (key, value) => {
-    const next = setPreference(key, value);
-    if (next) persist(next);
-  };
-
-  const chooseSchema = (value) => {
-    setTheme(value);
-    const next = setPreference("colorSchema", value);
-    if (next) persist(next);
-  };
-
-  // Shuffles the visual settings. Scale, colour schema, layout and the
-  // sidebar keep their values, since a surprise change to those is
-  // disorienting rather than fun.
-  const randomise = () => {
-    persist(setPreferences(randomPreferences(preferences)));
-  };
-
-  // Resets the look but keeps light/dark as it is: someone reading in dark
-  // mode should not be thrown into light (or back to following the system)
-  // just for clearing a colour or a font.
-  const reset = () => {
-    persist(setPreferences(resetPreferences(preferences, theme)));
-  };
-
-  const ready = mounted && prefsMounted;
-  const is = (key, value) => ready && preferences[key] === value;
-  // Colour schema is left out on purpose, since reset does not touch it --
-  // otherwise the button would never enable back in dark mode.
-  const isDefault =
-    ready &&
-    Object.entries(DEFAULT_PREFERENCES).every(
-      ([key, value]) => key === "colorSchema" || preferences[key] === value
-    );
-
-  // Same reasoning as the theme toggle: the sheet is Radix, and its ids are
-  // generated. Rendering a plain button until mounted keeps the server and
-  // the first client render identical.
-  if (!ready) {
+  // Until mounted, render a plain button rather than the dropdown. Radix
+  // builds its ids with useId, and when the server's tree and the first
+  // client tree differ at all those ids diverge, which React reports as a
+  // hydration failure and then trips over while patching the DOM. A
+  // placeholder of the same size keeps the header from shifting.
+  if (!appearance.ready) {
     return (
       <Button variant="ghost" size="icon" disabled aria-hidden>
         <Palette className="h-5 w-5" />
@@ -181,11 +44,26 @@ const ThemeCustomizer = () => {
 
   return (
     <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Customize appearance">
-          <Palette className="h-5 w-5" />
-        </Button>
-      </SheetTrigger>
+      {/* The provider is local rather than relied upon from an ancestor: this
+          button also sits in the marketing header, which is outside the
+          sidebar's provider, and a bare Radix tooltip throws without one.
+          Nested providers are fine. */}
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Customize Dashboard"
+              >
+                <Palette className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Customize Dashboard</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       <SheetContent className="flex w-full flex-col gap-0 sm:max-w-sm">
         <SheetHeader>
@@ -195,154 +73,12 @@ const ThemeCustomizer = () => {
           </SheetDescription>
         </SheetHeader>
 
-        <div className="-mx-6 flex-1 space-y-6 overflow-y-auto px-6 py-6">
-          <Section title="Theme Color">
-            <Dropdown
-              label="Theme Color"
-              value={preferences.themeColor}
-              options={THEME_COLORS}
-              onChange={(value) => choose("themeColor", value)}
-              withSwatch
-            />
-          </Section>
+        <AppearanceSections
+          appearance={appearance}
+          className="-mx-6 flex-1 space-y-6 overflow-y-auto px-6 py-6"
+        />
 
-          <Section title="Chart Colors">
-            <Dropdown
-              label="Chart Colors"
-              value={preferences.chartColors}
-              options={CHART_COLORS}
-              onChange={(value) => choose("chartColors", value)}
-              withShades
-            />
-          </Section>
-
-          <Section title="Font">
-            <Dropdown
-              label="Font"
-              value={preferences.font}
-              options={FONTS}
-              onChange={(value) => choose("font", value)}
-            />
-          </Section>
-
-          <Section title="Display Font">
-            <Dropdown
-              label="Display Font"
-              value={preferences.displayFont}
-              options={DISPLAY_FONTS}
-              onChange={(value) => choose("displayFont", value)}
-            />
-          </Section>
-
-          <Section title="Scale">
-            <div role="radiogroup" aria-label="Scale" className="grid grid-cols-5 gap-2">
-              {SCALES.map(({ id, label }) => (
-                <Choice
-                  key={id}
-                  label={label}
-                  selected={is("scale", id)}
-                  onClick={() => choose("scale", id)}
-                  className="px-1 text-xs"
-                >
-                  {label}
-                </Choice>
-              ))}
-            </div>
-          </Section>
-
-          <Section title="Radius">
-            <div role="radiogroup" aria-label="Radius" className="grid grid-cols-5 gap-2">
-              {RADII.map(({ id, label }) => (
-                <Choice
-                  key={id}
-                  label={label}
-                  selected={is("radius", id)}
-                  onClick={() => choose("radius", id)}
-                  className="flex-col gap-1 px-1 py-2"
-                >
-                  <span
-                    className="h-5 w-5 border-2 border-foreground/70"
-                    style={{ borderRadius: `${id}rem` }}
-                  />
-                  <span className="text-[10px] leading-none">{label}</span>
-                </Choice>
-              ))}
-            </div>
-          </Section>
-
-          <Section title="Color Schema">
-            <div role="radiogroup" aria-label="Color Schema" className="grid grid-cols-3 gap-2">
-              {COLOR_SCHEMAS.map(({ id, label }) => (
-                <Choice
-                  key={id}
-                  label={label}
-                  selected={mounted && theme === id}
-                  onClick={() => chooseSchema(id)}
-                >
-                  {label}
-                </Choice>
-              ))}
-            </div>
-          </Section>
-
-          <Section title="Content Layout">
-            <div role="radiogroup" aria-label="Content Layout" className="grid grid-cols-2 gap-2">
-              {CONTENT_LAYOUTS.map(({ id, label }) => (
-                <Choice
-                  key={id}
-                  label={label}
-                  selected={is("contentLayout", id)}
-                  onClick={() => choose("contentLayout", id)}
-                >
-                  {label}
-                </Choice>
-              ))}
-            </div>
-          </Section>
-
-          <Section title="Sidebar Collapse">
-            <div role="radiogroup" aria-label="Sidebar Collapse" className="grid grid-cols-3 gap-2">
-              {SIDEBAR_COLLAPSIBLE.map(({ id, label }) => (
-                <Choice
-                  key={id}
-                  label={label}
-                  selected={is("sidebarCollapsible", id)}
-                  onClick={() => choose("sidebarCollapsible", id)}
-                  className="px-1 text-xs"
-                >
-                  {label}
-                </Choice>
-              ))}
-            </div>
-          </Section>
-
-          <Section title="Sidebar Variant">
-            <div role="radiogroup" aria-label="Sidebar Variant" className="grid grid-cols-3 gap-2">
-              {SIDEBAR_VARIANTS.map(({ id, label }) => (
-                <Choice
-                  key={id}
-                  label={label}
-                  selected={is("sidebarVariant", id)}
-                  onClick={() => choose("sidebarVariant", id)}
-                  className="px-1 text-xs"
-                >
-                  {label}
-                </Choice>
-              ))}
-            </div>
-          </Section>
-        </div>
-
-        <div className="flex gap-2 border-t pt-4">
-          <Button variant="outline" className="flex-1" onClick={randomise}>
-            <Shuffle className="mr-2 h-4 w-4" />
-            Random
-          </Button>
-          <Button variant="outline" className="flex-1" onClick={reset} disabled={isDefault}>
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Reset to default
-          </Button>
-        </div>
+        <AppearanceActions appearance={appearance} className="border-t pt-4" />
       </SheetContent>
     </Sheet>
   );

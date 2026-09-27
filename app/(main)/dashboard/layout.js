@@ -20,7 +20,7 @@ const DashboardLayout = ({ children }) => {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <div className="flex items-center gap-2">
           <span className="inline-flex h-9 items-center gap-2 rounded-md border bg-card px-3 text-sm tabular-nums">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />

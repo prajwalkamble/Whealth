@@ -1,4 +1,4 @@
-import { getDashboardPageData } from '@/actions/dashboard';
+import { getDashboardPageData } from '@/lib/queries';
 import BudgetProgress from './_components/budget-progress';
 import StatCards from './_components/stat-cards';
 import CashFlowChart from './_components/cash-flow-chart';

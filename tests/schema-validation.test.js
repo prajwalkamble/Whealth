@@ -3,6 +3,10 @@ import {
   accountInputSchema,
   transactionInputSchema,
   budgetInputSchema,
+  feedbackInputSchema,
+  FEEDBACK_TYPES,
+  FEEDBACK_WORD_MINIMUM,
+  countWords,
   parseOrThrow,
 } from "@/app/lib/schema";
 
@@ -100,5 +104,59 @@ describe("budgetInputSchema", () => {
   it("rejects zero and negative", () => {
     expect(() => parseOrThrow(budgetInputSchema, 0)).toThrow(/greater than zero/i);
     expect(() => parseOrThrow(budgetInputSchema, -5)).toThrow(/greater than zero/i);
+  });
+});
+
+describe("feedbackInputSchema", () => {
+  const ok = { type: "problem", message: "The dashboard chart is blank." };
+
+  it("accepts each kind the widget offers", () => {
+    for (const type of Object.keys(FEEDBACK_TYPES)) {
+      expect(feedbackInputSchema.safeParse({ ...ok, type }).success).toBe(true);
+    }
+  });
+
+  it("rejects a kind that is not on the list", () => {
+    // A server action is a public endpoint, so the type cannot be trusted.
+    expect(feedbackInputSchema.safeParse({ ...ok, type: "rate" }).success).toBe(false);
+    expect(feedbackInputSchema.safeParse({ ...ok, type: "spam" }).success).toBe(false);
+  });
+
+  it("rejects a message below the word minimum", () => {
+    // The client disables Send below this too, but the action is a public
+    // endpoint, so the rule has to hold here.
+    expect(feedbackInputSchema.safeParse({ ...ok, message: "" }).success).toBe(false);
+    expect(feedbackInputSchema.safeParse({ ...ok, message: "   " }).success).toBe(false);
+    expect(feedbackInputSchema.safeParse({ ...ok, message: "two words" }).success).toBe(false);
+    expect(feedbackInputSchema.safeParse({ ...ok, message: "now three words" }).success).toBe(true);
+  });
+
+  it("counts words the way the client's hint does", () => {
+    expect(countWords("  one   two \n three  ")).toBe(3);
+    expect(countWords("")).toBe(0);
+    expect(countWords("   ")).toBe(0);
+    expect(countWords(null)).toBe(0);
+    // A single very long token is one word, however many characters it has.
+    expect(countWords("a".repeat(500))).toBe(1);
+  });
+
+  it("caps the message length", () => {
+    const long = "word ".repeat(FEEDBACK_WORD_MINIMUM + 1);
+    expect(
+      feedbackInputSchema.safeParse({ ...ok, message: long + "x".repeat(4001) }).success
+    ).toBe(false);
+    expect(
+      feedbackInputSchema.safeParse({ ...ok, message: "one two three" }).success
+    ).toBe(true);
+  });
+
+  it("trims the message and drops unknown keys", () => {
+    const parsed = parseOrThrow(feedbackInputSchema, {
+      ...ok,
+      message: "  spaced out here  ",
+      userId: "someone-else",
+    });
+    expect(parsed.message).toBe("spaced out here");
+    expect(parsed.userId).toBeUndefined();
   });
 });

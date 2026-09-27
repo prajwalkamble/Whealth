@@ -14,7 +14,7 @@ import {
 // Section for the first path segment, so /account/<id> reads as
 // "Accounts / Account details" rather than the raw id.
 const SECTIONS = {
-  dashboard: { label: "Overview", href: "/dashboard" },
+  dashboard: { label: "Dashboard", href: "/dashboard" },
   accounts: { label: "Accounts", href: "/accounts" },
   account: { label: "Accounts", href: "/accounts", leaf: "Account details" },
   transactions: { label: "Transactions", href: "/transactions" },

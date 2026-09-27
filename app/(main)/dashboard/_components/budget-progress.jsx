@@ -11,7 +11,12 @@ import { Check, Pencil, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-const BudgetProgress = ({ initialBudget, currentExpenses, hasAccount = true }) => {
+const BudgetProgress = ({
+  initialBudget,
+  currentExpenses,
+  hasAccount = true,
+  guest = false,
+}) => {
   const [isEditing, setIsEditing] = useState(false);
   const [newbudget, setNewBudget] = useState(
     initialBudget?.amount?.toString() || ""
@@ -22,18 +27,6 @@ const BudgetProgress = ({ initialBudget, currentExpenses, hasAccount = true }) =
     initialBudget?.amount > 0
       ? (currentExpenses / initialBudget.amount) * 100
       : 0;
-
-  const remaining = (initialBudget?.amount ?? 0) - currentExpenses;
-
-  // Days left in the month, so "70% used" reads against how far through the
-  // month it is.
-  const today = new Date();
-  const daysInMonth = new Date(
-    today.getFullYear(),
-    today.getMonth() + 1,
-    0
-  ).getDate();
-  const daysLeft = daysInMonth - today.getDate();
 
   const {
     loading: isLoading,
@@ -163,7 +156,7 @@ const BudgetProgress = ({ initialBudget, currentExpenses, hasAccount = true }) =
                 spent · no budget set
               </span>
             )}
-            {hasAccount && (
+            {hasAccount && !guest && (
               <button
                 type="button"
                 onClick={() => setIsEditing(true)}

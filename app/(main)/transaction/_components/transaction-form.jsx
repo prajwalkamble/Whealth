@@ -12,18 +12,46 @@ import { Switch } from '@/components/ui/switch';
 import useFetch from '@/hooks/use-fetch';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, Loader } from 'lucide-react';
+import { CalendarIcon, Loader, Lock } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect } from 'react'
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { ReceiptScanner } from './receipt-scanner';
+import Link from 'next/link';
 
+// Stands in for the scanner in demo mode, saying plainly why it is
+// unavailable and where to go, rather than showing a button that fails.
+const LockedReceiptScanner = () => (
+  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-4">
+    <div className="flex items-start gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+        <Lock className="h-4 w-4" />
+      </span>
+      <div>
+        <p className="text-sm font-medium">Scan Receipt with AI</p>
+        <p className="text-sm text-muted-foreground">
+          Available once you create an account.
+        </p>
+      </div>
+    </div>
+    <Button asChild size="sm" variant="outline">
+      <Link href="/sign-up">Create account</Link>
+    </Button>
+  </div>
+);
+
+// guest: demo mode. The same form, but it hands the values to onGuestSubmit --
+// which keeps them in the browser -- instead of calling the server action,
+// and the receipt scanner is locked, since scanning spends Gemini quota and
+// there is no account to rate-limit against.
 export function AddTransactionForm ({
   accounts,
   categories,
   editMode = false,
   initialData = null,
+  guest = false,
+  onGuestSubmit,
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -75,6 +103,12 @@ export function AddTransactionForm ({
       amount: parseFloat(data.amount),
     };
 
+    if (guest) {
+      onGuestSubmit?.(formData);
+      reset();
+      return;
+    }
+
     if (editMode) {
       transactionFn(editId, formData)
     } else {
@@ -83,6 +117,8 @@ export function AddTransactionForm ({
   };
 
   useEffect(() => {
+    // Demo mode never calls the action, so there is no result to react to.
+    if (guest) return;
     if (transactionResult?.success && !transactionLoading) {
       toast.success(
         editMode
@@ -123,8 +159,14 @@ export function AddTransactionForm ({
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-        {/* AI Receipt Scanner */}
-        {!editMode &&  <ReceiptScanner onScanComplete={handleScanComplete} />}
+        {/* AI Receipt Scanner. Locked in demo mode: a scan is a Gemini
+            request, and the rate limiter keys on a signed-in user. */}
+        {!editMode &&
+          (guest ? (
+            <LockedReceiptScanner />
+          ) : (
+            <ReceiptScanner onScanComplete={handleScanComplete} />
+          ))}
 
       {/* Type */}
       <div className="space-y-2">

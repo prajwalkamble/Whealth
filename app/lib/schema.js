@@ -50,18 +50,26 @@ const CATEGORY_TYPES = defaultCategories.reduce((map, category) => {
   return map;
 }, new Map());
 
+// The ceiling on any money value. An opening balance may be negative -- an
+// overdrawn current account is a real thing -- but it needs the same ceiling
+// as a transaction. It was only checked for being finite, so a direct call
+// could store 1e308 and every total on the dashboard became unreadable.
+const AMOUNT_LIMIT = 1_000_000_000;
+
 const positiveAmount = z
   .number({ invalid_type_error: "Amount must be a number" })
   .finite("Amount must be a number")
   .positive("Amount must be greater than zero")
-  .max(1_000_000_000, "Amount is too large");
+  .max(AMOUNT_LIMIT, "Amount is too large");
 
 export const accountInputSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
   type: z.enum(["CURRENT", "SAVINGS"]),
   balance: z.coerce
     .number({ invalid_type_error: "Invalid balance amount" })
-    .finite("Invalid balance amount"),
+    .finite("Invalid balance amount")
+    .min(-AMOUNT_LIMIT, "Balance is too large")
+    .max(AMOUNT_LIMIT, "Balance is too large"),
   isDefault: z.boolean().default(false),
 });
 
@@ -101,6 +109,37 @@ export const transactionInputSchema = z
   });
 
 export const budgetInputSchema = z.coerce.number().pipe(positiveAmount);
+
+// The kinds of feedback the widget offers. Rating is handled by
+// ratingInputSchema and actions/rating.js, since it is stored rather than
+// only mailed.
+export const FEEDBACK_TYPES = {
+  feedback: "Share Feedback",
+  problem: "Report an issue",
+};
+
+// A word count reads better to the person writing than a character count: "at
+// least 3 words" is a clear instruction, where "at least 5 characters" is an
+// arbitrary threshold they have to discover by typing.
+export const FEEDBACK_WORD_MINIMUM = 3;
+
+export const countWords = (text) =>
+  String(text ?? "").trim().split(/\s+/).filter(Boolean).length;
+
+export const feedbackInputSchema = z.object({
+  type: z.enum(Object.keys(FEEDBACK_TYPES), {
+    errorMap: () => ({ message: "Choose what kind of feedback this is" }),
+  }),
+  // Long enough to be worth reading, short enough not to be a payload.
+  message: z
+    .string()
+    .trim()
+    .max(4000, "That is too long; please keep it under 4000 characters")
+    .refine(
+      (value) => countWords(value) >= FEEDBACK_WORD_MINIMUM,
+      `Please use at least ${FEEDBACK_WORD_MINIMUM} words`
+    ),
+});
 
 export const ratingInputSchema = z.coerce
   .number({ invalid_type_error: "Rating must be a number" })

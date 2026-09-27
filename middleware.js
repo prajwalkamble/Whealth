@@ -4,12 +4,18 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 // Every route under app/(main). Listed one by one rather than relying on
 // "/account(.*)" to also cover "/accounts": a new page that does not match an
 // existing prefix would otherwise be reachable signed out.
+// Budgets, Goals and Analytics are listed before they exist on purpose: they
+// are already in the sidebar, and adding the page later without remembering
+// this file is exactly how one ends up reachable signed out.
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
   "/account(.*)",
   "/accounts(.*)",
   "/transaction(.*)",
   "/transactions(.*)",
+  "/budgets(.*)",
+  "/goals(.*)",
+  "/analytics(.*)",
   "/settings(.*)",
 ]);
 

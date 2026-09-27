@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { ArrowUpRight, Plus, Sparkles, TrendingDown, TrendingUp } from "lucide-react";
+import { Plus, Sparkles, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import CreateAccountDrawer from "@/components/create-account-drawer";
 import {
@@ -170,7 +169,8 @@ function savingsBadge({ hasTransactions, rate, previousRate, net }) {
   };
 }
 
-const StatCards = ({ summary, accountCount, hasTransactions }) => {
+// guest: demo mode, where creating an account would need a signed-in user.
+const StatCards = ({ summary, accountCount, hasTransactions, guest = false }) => {
   const {
     totalBalance,
     monthlyIncome,
@@ -210,13 +210,9 @@ const StatCards = ({ summary, accountCount, hasTransactions }) => {
             tone={totalBalance < 0 ? "text-red-600 dark:text-red-400" : undefined}
           />
           <Caption>{balance.caption}</Caption>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Button size="sm" asChild>
-              <Link href="/transaction/create">
-                <ArrowUpRight className="h-4 w-4" />
-                Add
-              </Link>
-            </Button>
+          {/* Adding a transaction has its own button in the page header, so
+              this card carries only the action that is not offered elsewhere. */}
+          <div className={cn("mt-4", guest && "hidden")}>
             <CreateAccountDrawer>
               <Button size="sm" variant="outline">
                 <Plus className="h-4 w-4" />

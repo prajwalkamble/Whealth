@@ -53,15 +53,19 @@ const expectFailure = async (promise, pattern) => {
   return result;
 };
 
+const { createAccount } = await import("@/actions/dashboard");
+// The reads are plain server functions rather than server actions, so that
+// nothing in the app calls them as endpoints. See lib/queries.js.
 const {
-  createAccount,
   getUserAccounts,
-  getDashboardData,
+  getRecentTransactions,
   getDashboardSummary,
   getMonthlyCashFlow,
   getCategoryBreakdown,
   getDashboardPageData,
-} = await import("@/actions/dashboard");
+  getCurrentBudget,
+  getMyRating,
+} = await import("@/lib/queries");
 const {
   updateDefaultAccount,
   getAccountWithTransactions,
@@ -73,8 +77,8 @@ const {
   getTransaction,
   getUserTransactions,
 } = await import("@/actions/transaction");
-const { getCurrentBudget, updateBudget } = await import("@/actions/budget");
-const { getMyRating, submitRating } = await import("@/actions/rating");
+const { updateBudget } = await import("@/actions/budget");
+const { submitRating } = await import("@/actions/rating");
 const { savePreferences } = await import("@/actions/preferences");
 const { DEFAULT_PREFERENCES } = await import("@/lib/preferences");
 const { getLandingStats, uptimeSlot } = await import("@/lib/stats");
@@ -621,7 +625,7 @@ describe("Budget actions", () => {
 describe("Dashboard data", () => {
   it("returns only the calling tenant's transactions", async () => {
     asTenant("alice");
-    const rows = await getDashboardData();
+    const rows = await getRecentTransactions();
     const ids = new Set(rows.map((r) => r.userId));
     expect([...ids]).toEqual([TENANTS.alice.id]);
   });
@@ -1138,7 +1142,6 @@ describe("Dashboard page data", () => {
       "breakdown",
       "budget",
       "cashFlow",
-      "rating",
       "summary",
       "transactions",
     ]);
@@ -1146,23 +1149,24 @@ describe("Dashboard page data", () => {
     expect(page.accounts.length).toBeGreaterThan(0);
   });
 
-  it("agrees with the individual actions", async () => {
+  it("agrees with the individual reads", async () => {
     asTenant("alice");
-    const [page, accounts, summary, cashFlow, breakdown, rating] =
-      await Promise.all([
-        getDashboardPageData(),
-        getUserAccounts(),
-        getDashboardSummary(),
-        getMonthlyCashFlow(),
-        getCategoryBreakdown(),
-        getMyRating(),
-      ]);
+    const [page, accounts, summary, cashFlow, breakdown] = await Promise.all([
+      getDashboardPageData(),
+      getUserAccounts(),
+      getDashboardSummary(),
+      getMonthlyCashFlow(),
+      getCategoryBreakdown(),
+    ]);
 
     expect(page.accounts.map((a) => a.id)).toEqual(accounts.map((a) => a.id));
     expect(page.summary).toEqual(summary);
     expect(page.cashFlow).toEqual(cashFlow);
     expect(page.breakdown).toEqual(breakdown);
-    expect(page.rating).toEqual(rating);
+
+    // The budget on the page is the default account's, not every account's.
+    const defaultAccount = accounts.find((a) => a.isDefault);
+    expect(page.budget).toEqual(await getCurrentBudget(defaultAccount?.id));
   });
 
   it("scopes everything to the calling tenant", async () => {

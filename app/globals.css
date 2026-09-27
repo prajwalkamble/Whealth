@@ -887,7 +887,9 @@
      exposes it as a CSS variable; a family is only downloaded when something
      on the page actually uses it. */
   :root {
-    --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    /* Font "Default" is Geist, the app's own typeface. It used to be Inter,
+       which made "Default" and "Inter" two entries that rendered identically. */
+    --font-body: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
     /* Display Font "Default" follows the body font. */
     --font-display: var(--font-body);
   }
@@ -978,4 +980,29 @@
 .animate-gradient {
   background-size: 200% 200%;
   animation: gradientMove 2s ease infinite;
+}
+
+/* The handwritten aside on the pricing page. The tilt lives in the keyframes
+   rather than in a rotate class, because an animation on `transform` replaces
+   whatever transform the class set -- the two cannot both apply. */
+@keyframes floatNote {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-8deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(-8deg);
+  }
+}
+
+.animate-float-note {
+  animation: floatNote 3s ease-in-out infinite;
+}
+
+/* Motion is decoration here, and some people get motion sickness from it. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-float-note {
+    animation: none;
+    transform: rotate(-8deg);
+  }
 }

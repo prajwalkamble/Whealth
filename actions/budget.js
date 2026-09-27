@@ -6,45 +6,9 @@ import { revalidatePath } from "next/cache";
 import { runAction } from "@/lib/action-error";
 import { enforceRateLimit } from "@/lib/arcjet";
 import { requireClerkUserId } from "@/lib/session";
-import { monthBounds } from "@/lib/time";
 
-export async function getCurrentBudget(accountId) {
-  try {
-    return await withCurrentTenant(async (tx, userId) => {
-      // Scoped explicitly as well as by RLS: the query should still be correct
-      // if it is ever run against a connection without a tenant context.
-      const budget = await tx.budget.findUnique({ where: { userId } });
-
-      // The month on the app's calendar, not the server's UTC one.
-      const { startOfMonth, endOfMonth } = monthBounds();
-
-      const expenses = await tx.transaction.aggregate({
-        where: {
-          userId,
-          type: "EXPENSE",
-          date: {
-            gte: startOfMonth,
-            lte: endOfMonth,
-          },
-          accountId,
-        },
-        _sum: {
-          amount: true,
-        },
-      });
-
-      return {
-        budget: budget ? { ...budget, amount: budget.amount.toNumber() } : null,
-        currentExpenses: expenses._sum.amount
-          ? expenses._sum.amount.toNumber()
-          : 0,
-      };
-    });
-  } catch (error) {
-    console.error("Error fetching budget: ", error);
-    throw error;
-  }
-}
+// Reading the budget moved to lib/queries.js (getCurrentBudget), which is not
+// a "use server" module: only the write below is something the browser calls.
 
 export async function updateBudget(rawAmount) {
   return runAction(async () => {

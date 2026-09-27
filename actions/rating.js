@@ -8,15 +8,8 @@ import { ActionError, runAction } from "@/lib/action-error";
 import { enforceRateLimit } from "@/lib/arcjet";
 import { requireClerkUserId } from "@/lib/session";
 
-export async function getMyRating() {
-  return withCurrentTenant(async (tx, userId) => {
-    const rating = await tx.rating.findUnique({
-      where: { userId },
-      select: { score: true },
-    });
-    return rating?.score ?? null;
-  });
-}
+// Reading the rating moved to lib/queries.js (getMyRating), which is not a
+// "use server" module: only the write below is something the browser calls.
 
 export async function submitRating(rawScore) {
   return runAction(async () => {

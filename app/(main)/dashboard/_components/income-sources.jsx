@@ -72,13 +72,18 @@ const IncomeSources = ({ rows, total, previousTotal }) => {
           </p>
         ) : (
           <>
+            {/* Segments are sized by flex-grow rather than a width percentage.
+                A percentage with a floor under it summed past 100 once a few
+                categories were tiny, and the last segment was clipped; growing
+                from a zero basis always fills the track exactly, and the floor
+                on the weight keeps a small category visible. */}
             <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full">
               {slices.map((slice) => (
                 <div
                   key={slice.category}
-                  className="h-full first:rounded-l-full last:rounded-r-full"
+                  className="h-full min-w-[3px] first:rounded-l-full last:rounded-r-full"
                   style={{
-                    width: `${Math.max(slice.share, 1.5)}%`,
+                    flex: `${Math.max(slice.share, 1)} 1 0%`,
                     backgroundColor: slice.color,
                   }}
                   title={`${slice.label}: ${slice.share.toFixed(0)}%`}

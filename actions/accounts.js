@@ -1,6 +1,7 @@
 "use server";
 
 import { withCurrentTenant } from "@/lib/prisma";
+import { serializeDecimals } from "@/lib/queries";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { LANDING_STATS_TAG } from "@/lib/stats";
 import { ActionError, runAction } from "@/lib/action-error";
@@ -8,16 +9,8 @@ import { enforceRateLimit } from "@/lib/arcjet";
 import { requireClerkUserId } from "@/lib/session";
 import { APP_TIME_ZONE } from "@/lib/time";
 
-const serializeTransaction = (obj) => {
-  const serialized = { ...obj };
-  if (obj.balance) {
-    serialized.balance = obj.balance.toNumber();
-  }
-  if (obj.amount) {
-    serialized.amount = obj.amount.toNumber();
-  }
-  return serialized;
-};
+// The shared serializer (lib/queries.js), rather than a third copy of it.
+const serializeTransaction = serializeDecimals;
 
 // Serialises changes to one user's accounts. Two requests that both unset the
 // old default and set a new one could otherwise interleave and leave two
