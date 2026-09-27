@@ -1,0 +1,149 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // Generated to a fixed path rather than into node_modules.
+  //
+  // Under pnpm the client lands inside a hashed .pnpm/ directory, and Next's
+  // bundler then cannot find the query engine binary that has to sit beside
+  // it -- the production build fails at "Collecting page data" with
+  // "could not locate the Query Engine". A stable directory the app can
+  // resolve normally avoids the whole problem.
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  clerkUserId  String        @unique // clerk user id
+  // Optional: Clerk allows sign-in without an email address (phone, some
+  // OAuth providers). Emails are simply not sent to users without one.
+  email        String?       @unique
+  name         String
+  imageUrl     String
+  transactions Transaction[]
+  accounts     Account[]
+  budgets      Budget[]
+  rating       Rating?
+  // Light / dark / system, chosen in the app and kept on the account so the
+  // choice follows the user to another browser or device.
+  // Appearance settings from lib/preferences.js (theme colour, chart colours,
+  // fonts, scale, radius, colour schema, layout, sidebar). One column rather
+  // than ten, since they are only ever read and written together.
+  preferences  Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@map("users")
+}
+
+model Account {
+  id           String        @id @default(uuid())
+  name         String
+  type         AccountType
+  balance      Decimal       @default(0) // will ask inital balance while creating an account
+  isDefault    Boolean       @default(false)
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([userId])
+  // Supports the accounts_isolation RLS predicate and the default-account lookup
+  @@index([userId, isDefault], map: "accounts_user_default_idx")
+  @@map("accounts")
+}
+
+enum AccountType {
+  CURRENT
+  SAVINGS
+}
+
+model Transaction {
+  id                String             @id @default(uuid())
+  type              TransactionType
+  amount            Decimal
+  description       String?
+  date              DateTime
+  category          String
+  receiptUrl        String?
+  isRecurring       Boolean            @default(false)
+  recurringInterval RecurringInterval? // Only used if isRecurring is true
+  nextRecurringDate DateTime? // Next date for recurring transaction
+  lastProcessed     DateTime? // Last time this recurring transaction was processed
+  status            TransactionStatus  @default(COMPLETED)
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId         String
+  account           Account            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([accountId])
+  // Support the transactions_isolation RLS predicate on the hot read paths
+  @@index([userId, date(sort: Desc)], map: "transactions_user_date_idx")
+  @@index([userId, accountId], map: "transactions_user_account_idx")
+  @@map("transactions")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum RecurringInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model Budget {
+  id            String    @id @default(uuid())
+  amount        Decimal
+  lastAlertSent DateTime? // Track when the last alert was sent
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("budgets")
+}
+
+// One rating per user, which they can change. Averaged for the landing page.
+model Rating {
+  id        String   @id @default(uuid())
+  score     Int // 1-5, enforced by a CHECK constraint in the migration
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ratings")
+}
+
+// One row per 5-minute slot in which the uptime heartbeat succeeded. A slot
+// with no row is downtime: the app or the database could not record it.
+model UptimeCheck {
+  slot DateTime @id
+
+  @@map("uptime_checks")
+}
