@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+build/
+database/generated/
+.env*
+!.env.example
+.git/
+.github/
+docs/
+legal/
+assets/
+coverage/
+*.log

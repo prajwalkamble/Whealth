@@ -1,0 +1,9 @@
+WHealthOS
+Copyright (c) 2026 Prajwal Kamble
+
+This product includes third-party open-source software. See
+legal/THIRD-PARTY-LICENSES/ for the inventory (generate with
+`pnpm licenses list --long` before each release).
+
+"WHealthOS" and the WHealthOS logo are marks of the project owner. A licence to
+use the source is not a licence to use the name — see legal/TRADEMARK.md.

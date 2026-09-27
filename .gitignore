@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the example must be in version control: it is the only record of
+# which variables the application needs.
+!.env.example
 
 # vercel
 .vercel
