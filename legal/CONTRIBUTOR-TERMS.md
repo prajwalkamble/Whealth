@@ -1,13 +1,21 @@
 # Contributor terms
 
-> **Status: DRAFT — not legal advice, and not yet in force.**
+> **Status: DRAFT — not legal advice.**
 
-Contributions are accepted under the repository's licence. Before outside
-contributions are accepted, this needs review by someone qualified, covering:
+The project is licensed under Apache 2.0 (`Apache-2.0`).
 
-- assignment or licence of contributed IP
-- the contributor's right to contribute the work
-- how contributions interact with the commercial licence
-- patent grant
+Under section 5 of that licence, a contribution intentionally submitted for
+inclusion in the work is licensed to the project under the same terms, unless
+you state otherwise in writing. No separate agreement is currently required,
+and **contributors retain copyright in their own contributions** — submitting
+a change does not transfer ownership.
 
-A CLA or DCO should be chosen deliberately rather than by default.
+Before the project accepts outside contributions at scale, the following are
+worth settling deliberately rather than by default:
+
+- whether a DCO sign-off or a CLA is wanted, and why
+- how contributions interact with any future change of licensing terms for
+  unreleased code
+- attribution and the record of who contributed what
+
+No CLA exists today, and none is implied by this document.

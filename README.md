@@ -64,10 +64,19 @@ Arcjet · Vitest.
 | [Security](docs/security/README.md) | Tenancy, secrets, endpoint surface |
 | [Decisions](docs/decisions/README.md) | ADRs |
 
-## Licence
+## License
 
-See [LICENSE](LICENSE) and [legal/LICENSE-STRUCTURE.md](legal/LICENSE-STRUCTURE.md).
+WHealthOS is licensed under the Apache License, Version 2.0.
 
-> The root licence is currently MIT, which is inconsistent with the intended
-> commercial/source-available terms. This is unresolved — see
-> `legal/LICENSE-STRUCTURE.md`.
+Copyright © 2026 Prajwal Kamble (WHealthOS).
+
+See the [LICENSE](./LICENSE) file for the complete license text.
+
+Third-party dependencies and components may be subject to their respective
+licenses and attribution requirements. See
+[legal/THIRD-PARTY-LICENSES](./legal/THIRD-PARTY-LICENSES/) for applicable
+information.
+
+"WHealthOS" and the WHealthOS logo are trademarks of the copyright owner, and
+trademark rights are separate from the software license — see
+[legal/TRADEMARK.md](./legal/TRADEMARK.md).

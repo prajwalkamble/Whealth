@@ -1,68 +1,74 @@
 # Licensing structure
 
-> **Status: the root `LICENSE` is currently MIT and has not been changed.**
-> See "Open question" below — this needs a decision.
+**WHealthOS is licensed under the Apache License, Version 2.0.**
 
-## 1. Core WHealthOS application
+SPDX identifier: `Apache-2.0`
+Copyright © 2026 Prajwal Kamble (WHealthOS)
 
-`apps/web`, `services/`, `database/` and `ai/` are the commercial core.
+The full text is in the repository root: [LICENSE](../LICENSE). It is the
+official Apache 2.0 text, unmodified. No additional conditions or restrictions
+have been attached to it.
 
-The stated intent is **commercial / source-available**: the source may be
-readable, but the licence should not grant the right to run WHealthOS as a
-competing service or redistribute it as a product.
+## 1. What the licence grants
 
-## 2. Future open-source components
+Apache 2.0 is a permissive open-source licence. Anyone who receives the code
+under it may use, modify, distribute and sublicense it, including commercially
+and including running it as a hosted service, subject to the conditions in the
+licence itself — chiefly retaining the licence and copyright notices, stating
+significant changes, and passing on the `NOTICE` file.
 
-Selected pieces may be released permissively — most plausibly client SDKs and
-`packages/api-contracts`, where adoption is the point and there is nothing
-proprietary to protect. Apache-2.0 is the likely choice there.
+It also grants an express patent licence from contributors, and terminates
+that patent grant for anyone who brings a patent suit alleging the work
+infringes.
 
-Any such package carries its own `LICENSE` file. A licence in a package
-directory governs that package only.
+These rights are not qualified anywhere else in this repository. If any other
+document here appears to narrow them, the LICENSE file governs.
+
+## 2. Repository visibility and future versions
+
+Three statements, all factual:
+
+- Any version actually distributed under Apache 2.0 **remains** under Apache
+  2.0 for everyone who received it. Those rights are perpetual and irrevocable
+  under the terms of the licence.
+- Making this repository private later **does not** retroactively revoke rights
+  already granted for versions already released.
+- The copyright owner **may** choose to distribute future, not-yet-released
+  code under different terms, subject to ownership of that code and to the
+  rights of any contributors to it.
+
+Nothing beyond those three statements should be inferred.
 
 ## 3. Third-party dependencies
 
-Inventoried under `legal/THIRD-PARTY-LICENSES/`. Generate with
-`pnpm licenses list --long` before each release and record the result.
+Dependencies and other third-party materials keep their own licences. They are
+not relicensed by this project, and their attribution requirements have to be
+honoured in anything distributed.
 
-## 4. Contributor terms
+See [THIRD-PARTY-LICENSES/](THIRD-PARTY-LICENSES/README.md).
 
-See [CONTRIBUTOR-TERMS.md](CONTRIBUTOR-TERMS.md).
+## 4. Trademarks
 
-## 5. Contributor rewards
+Separate from the copyright licence. Apache 2.0 section 6 explicitly does not
+grant permission to use the licensor's names or logos, beyond reasonable and
+customary use in describing the origin of the work.
 
-See [CONTRIBUTOR-REWARDS.md](CONTRIBUTOR-REWARDS.md).
+See [TRADEMARK.md](TRADEMARK.md).
 
-## 6. Trademark
+## 5. Contributors
 
-See [TRADEMARK.md](TRADEMARK.md). A source licence is not a trademark licence.
+See [CONTRIBUTOR-TERMS.md](CONTRIBUTOR-TERMS.md). Contributions are made under
+Apache 2.0 section 5 unless agreed otherwise in writing.
+
+## 6. Commercial offerings
+
+A commercial arrangement around Apache-licensed software — support,
+maintenance, hosting, or a service agreement — is a contract for those
+services. It does not restrict, and cannot restrict, the rights the licence
+already grants in the code.
 
 ---
 
-## Open question — requires a decision
-
-The repository root currently carries the **MIT licence**. MIT is a permissive
-open-source licence: it lets anyone use, modify, sell and redistribute this
-code, including as a competing hosted product, with no obligation beyond
-retaining the copyright notice.
-
-That is inconsistent with the stated commercial intent above.
-
-Options, with what each actually does:
-
-| Option | Effect |
-|---|---|
-| **Keep MIT** | Anyone may run and sell WHealthOS. Choose only if that is genuinely intended. |
-| **BUSL-1.1** | Source-available. Forbids competing hosted use for a set period, then converts to an open licence. Designed for exactly this situation. |
-| **AGPL-3.0** | Still open source. Anyone may run it as a competing service; they must publish their modifications. Copyleft, not commercial protection. |
-| **Proprietary / custom** | Maximum control, least contributor goodwill. |
-
-A note on dual-licensing under **Apache-2.0 and AGPL-3.0 together**: offering
-both as alternatives means any user may simply choose Apache-2.0, which
-nullifies the copyleft AGPL exists to provide. The pattern that does work is
-AGPL-3.0 *for the project* plus a separate commercial licence sold to those who
-cannot accept AGPL terms — the two are not offered as a free choice.
-
-**Changing a licence is not fully retroactive.** Anyone who received the code
-under MIT keeps those rights for that version. The sooner this is settled, the
-less code is affected.
+> This document describes how the project is licensed. It is not legal advice,
+> and no claim is made about compliance in any particular jurisdiction. Anyone
+> relying on it for a commercial decision should take their own advice.

@@ -1,8 +1,11 @@
 # Contributing
 
-> WHealthOS is pre-launch and not yet open to outside contributions — the
-> licensing and contributor terms are unsettled. See
-> [legal/LICENSE-STRUCTURE.md](legal/LICENSE-STRUCTURE.md).
+> WHealthOS is pre-launch. The project is licensed under Apache 2.0; see
+> [legal/LICENSE-STRUCTURE.md](legal/LICENSE-STRUCTURE.md) and
+> [legal/CONTRIBUTOR-TERMS.md](legal/CONTRIBUTOR-TERMS.md).
+>
+> Contributions are licensed under Apache 2.0 section 5. Contributors keep
+> copyright in their own work.
 
 ## Setup
 

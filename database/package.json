@@ -2,6 +2,7 @@
   "name": "@whealthos/database",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Prisma schema, migrations and the shared database client.",
   "type": "module",
   "main": "index.js",

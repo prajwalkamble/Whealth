@@ -2,6 +2,7 @@
   "name": "whealthos",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "pnpm --filter @whealthos/web dev",
     "build": "pnpm --filter @whealthos/web build",
