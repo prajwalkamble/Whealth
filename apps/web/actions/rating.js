@@ -24,7 +24,7 @@ export async function submitRating(rawScore) {
       // an account covers both ways of "using" it.
       const accounts = await tx.account.count({ where: { userId } });
       if (accounts === 0) {
-        throw new ActionError("Create an account before rating Whealth");
+        throw new ActionError("Create an account before rating WHealthOS");
       }
 
       // One rating per user; rating again replaces it.

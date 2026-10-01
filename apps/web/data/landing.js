@@ -72,7 +72,7 @@ export const testimonialsData = [
     role: "Small Business Owner",
     image: "https://randomuser.me/api/portraits/women/75.jpg",
     quote:
-      "WHealth has transformed how I manage my business finances. The AI insights have helped me identify cost-saving opportunities I never knew existed.",
+      "WHealthOS has transformed how I manage my business finances. The AI insights have helped me identify cost-saving opportunities I never knew existed.",
   },
   {
     name: "Michael Chen",
@@ -86,6 +86,6 @@ export const testimonialsData = [
     role: "Financial Advisor",
     image: "https://randomuser.me/api/portraits/women/74.jpg",
     quote:
-      "I recommend WHealth to all my clients. The multi-currency support and detailed analytics make it perfect for international investors.",
+      "I recommend WHealthOS to all my clients. The multi-currency support and detailed analytics make it perfect for international investors.",
   },
 ];

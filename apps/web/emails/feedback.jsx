@@ -17,7 +17,7 @@ import * as React from "react";
 export default function FeedbackEmail({
   label = "Feedback",
   message = "",
-  from = "A Whealth user",
+  from = "A WHealthOS user",
   replyTo = null,
 }) {
   return (

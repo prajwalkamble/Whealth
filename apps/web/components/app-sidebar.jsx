@@ -137,7 +137,7 @@ const AppSidebar = ({ items = NAV_ITEMS, homeHref = "/dashboard" }) => {
               <Link href={homeHref}>
                 <Image
                   src="/logo.png"
-                  alt="Whealth"
+                  alt="WHealthOS"
                   width={120}
                   height={48}
                   className="h-8 w-auto object-contain group-data-[collapsible=icon]:h-6"

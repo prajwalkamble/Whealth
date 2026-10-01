@@ -18,7 +18,7 @@ export default function GlobalError({ error, reset }) {
       >
         <div>
           <h1 style={{ fontSize: "2rem", marginBottom: "12px" }}>
-            Whealth is having trouble
+            WHealthOS is having trouble
           </h1>
           <p style={{ color: "#4b5563", marginBottom: "24px" }}>
             Please try again in a moment.

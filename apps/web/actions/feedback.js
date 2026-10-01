@@ -39,14 +39,14 @@ export async function submitFeedback(rawData) {
     const from =
       [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
       user?.username ||
-      "A Whealth user";
+      "A WHealthOS user";
     const replyTo = user?.primaryEmailAddress?.emailAddress ?? null;
 
     const label = FEEDBACK_TYPES[type];
 
     const result = await sendEmail({
       to: INBOX,
-      subject: `[Whealth] ${label} from ${from}`,
+      subject: `[WHealthOS] ${label} from ${from}`,
       react: FeedbackEmail({ label, message, from, replyTo }),
     });
 

@@ -72,7 +72,7 @@ export const NAV = [
       { label: "Changelog", description: "What shipped recently" },
     ],
   },
-  { label: "About" },
+  { label: "About", href: "/about" },
 ];
 
 // A short grace period on leaving, so moving the pointer diagonally from the

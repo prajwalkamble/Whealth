@@ -45,7 +45,7 @@ export const checkUser = async () => {
       [user.firstName, user.lastName].filter(Boolean).join(" ") ||
       user.username ||
       email ||
-      "Whealth user",
+      "WHealthOS user",
     email,
     imageUrl: user.imageUrl ?? "",
   };

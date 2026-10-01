@@ -21,7 +21,7 @@ export default async function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Your account and how Whealth looks.
+          Your account and how WHealthOS looks.
         </p>
       </div>
 
@@ -31,7 +31,7 @@ export default async function SettingsPage() {
         <CardHeader>
           <CardTitle>Account</CardTitle>
           <CardDescription>
-            Your name, email and password are managed by your Whealth sign-in.
+            Your name, email and password are managed by your WHealthOS sign-in.
             Use the avatar menu in the top bar to change them.
           </CardDescription>
         </CardHeader>

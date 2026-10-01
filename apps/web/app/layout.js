@@ -81,8 +81,8 @@ const fontVariables = [
   .join(" ");
 
 export const metadata = {
-  title: "Whealth",
-  description: "Innovate Your Financial Health with Whealth",
+  title: "WHealthOS",
+  description: "Understand your money and make smarter decisions with WHealthOS.",
 };
 
 // Providers only. The header and footer belong to (marketing); the signed-in

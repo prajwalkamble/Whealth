@@ -3,7 +3,7 @@ import { Resend } from "resend";
 // Resend's shared test sender only delivers to the address that owns the
 // Resend account; every other recipient is rejected. Real users need a sender
 // on a domain verified in Resend, set as RESEND_FROM_EMAIL, e.g.
-// "Whealth <reports@yourdomain.com>".
+// "WHealthOS <reports@yourdomain.com>".
 const TEST_SENDER = "WHealthOS <hello@whealthos.com>";
 const FROM = process.env.RESEND_FROM_EMAIL || TEST_SENDER;
 
