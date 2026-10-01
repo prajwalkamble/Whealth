@@ -58,7 +58,6 @@ const COLUMNS = [
       { label: "Security" },
       { label: "Cookie Policy" },
       { label: "AI Usage" },
-      { label: "Data & Privacy" },
     ],
   },
 ];
