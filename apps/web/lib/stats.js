@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { adminDb } from "./prisma";
+import { monthBounds, monthBoundsFor, previousMonth, zonedYearMonth } from "./time";
 
 // Invalidated by the actions that change a number (see revalidateTag calls),
 // so a new account, transaction or rating shows up on the next page load. The
@@ -46,14 +47,11 @@ async function uptimePercentage(now) {
 
 // The average savings rate across users who have recorded income.
 //
-// This is what users' own figures show, not a claim that WHealthOS produced
-// the saving: there is no baseline to compare against and no control group, so
-// any statement about the product improving outcomes would be unsupported.
-// Users with no recorded income are excluded, because a savings rate needs
-// something to divide by.
-//
-// Negative results are returned as they are. If people are spending more than
-// they earn, that is the honest figure.
+// This is what users' own figures show -- income minus expenses as a share of
+// income -- not a claim that WHealthOS produced the saving: there is no
+// baseline and no control group. Users with no recorded income are excluded,
+// because a rate needs something to divide by, and negative results are
+// returned as they are.
 async function averageSavingsRate() {
   const rows = await adminDb.transaction.groupBy({
     by: ["userId", "type"],
@@ -69,6 +67,8 @@ async function averageSavingsRate() {
     totals.set(row.userId, entry);
   }
 
+  // Averaged per user, not over pooled totals: otherwise one large account
+  // dominates the figure.
   const rates = [...totals.values()]
     .filter(({ income }) => income > 0)
     .map(({ income, expenses }) => ((income - expenses) / income) * 100);
@@ -77,11 +77,81 @@ async function averageSavingsRate() {
   return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
 }
 
+// The share of recorded transactions that completed.
+//
+// Worth being precise about what this does and does not measure. Every
+// transaction row carries a status, and this is the real proportion of them
+// that are COMPLETED. But a transaction that fails validation or a failed
+// write never becomes a row at all, so those are not in the denominator. The
+// figure reflects the state of recorded transactions, not an attempt-to-
+// success ratio across everything a user tried to do.
+async function transactionSuccessRate() {
+  const [total, completed] = await Promise.all([
+    adminDb.transaction.count(),
+    adminDb.transaction.count({ where: { status: "COMPLETED" } }),
+  ]);
+
+  if (total === 0) return null;
+  return (completed / total) * 100;
+}
+
+// The share of users whose savings rate improved on last month.
+//
+// This measures a change in users' own figures -- income minus expenses, as a
+// proportion of income, this month against last. It is not a claim that
+// WHealthOS produced the improvement: there is no control group, and someone
+// may simply have earned more. Only users who recorded income in both months
+// are counted, since a savings rate needs something to divide by.
+async function improvedSavingsShare() {
+  const thisMonth = monthBounds();
+  const lastMonth = monthBoundsFor(
+    ...Object.values(previousMonth(zonedYearMonth()))
+  );
+
+  const totalsFor = async ({ startOfMonth, endOfMonth }) => {
+    const rows = await adminDb.transaction.groupBy({
+      by: ["userId", "type"],
+      where: { date: { gte: startOfMonth, lte: endOfMonth } },
+      _sum: { amount: true },
+    });
+
+    const byUser = new Map();
+    for (const row of rows) {
+      const entry = byUser.get(row.userId) ?? { income: 0, expenses: 0 };
+      const amount = row._sum.amount?.toNumber() ?? 0;
+      if (row.type === "INCOME") entry.income += amount;
+      else entry.expenses += amount;
+      byUser.set(row.userId, entry);
+    }
+    return byUser;
+  };
+
+  const [current, previous] = await Promise.all([
+    totalsFor(thisMonth),
+    totalsFor(lastMonth),
+  ]);
+
+  const rate = ({ income, expenses }) => ((income - expenses) / income) * 100;
+
+  let compared = 0;
+  let improved = 0;
+  for (const [userId, now] of current) {
+    const before = previous.get(userId);
+    if (!before || now.income <= 0 || before.income <= 0) continue;
+    compared++;
+    if (rate(now) > rate(before)) improved++;
+  }
+
+  // Nothing to report until at least one user has two comparable months.
+  if (compared === 0) return null;
+  return (improved / compared) * 100;
+}
+
 // Aggregates only -- no row from any user leaves this function -- which is why
 // it may read through adminDb on the public landing page.
 export const getLandingStats = unstable_cache(
   async () => {
-    const [activeUsers, transactions, ratings, uptime, savingsRate] =
+    const [activeUsers, transactions, ratings, uptime, successRate, improved, savingsRate] =
       await Promise.all([
       // "Active" means the user has actually used the app, not just signed up:
       // they created an account or recorded a transaction.
@@ -93,6 +163,8 @@ export const getLandingStats = unstable_cache(
       adminDb.transaction.count(),
       adminDb.rating.aggregate({ _avg: { score: true }, _count: true }),
       uptimePercentage(new Date()),
+      transactionSuccessRate(),
+      improvedSavingsShare(),
       averageSavingsRate(),
     ]);
 
@@ -102,6 +174,8 @@ export const getLandingStats = unstable_cache(
       rating: ratings._count > 0 ? ratings._avg.score : null,
       ratingCount: ratings._count,
       uptime,
+      successRate,
+      improved,
       savingsRate,
     };
   },

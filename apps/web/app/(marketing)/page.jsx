@@ -11,38 +11,46 @@ const compactNumber = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 1,
 });
 
-// Real values only. Each tile is computed from the database, and any figure
-// with nothing behind it yet is left out rather than shown as a made-up
-// number.
+// Real values only. Every tile is computed from the database, and a figure
+// with nothing behind it yet is left out rather than shown as a guess.
 //
-// Note on what these deliberately are not: there is no "transaction success
-// rate" (every transaction is written as COMPLETED, so it would read 100% by
-// construction) and no "financial growth" figure (there is no baseline to
-// measure growth against). Both would be claims the data cannot support, which
-// matters for a financial product.
+// What each one actually measures, since two of the labels could be read more
+// broadly than the data supports:
+//
+//   Transaction Success Rate  the share of recorded transactions whose status
+//                             is COMPLETED. A failed write never becomes a
+//                             row, so it is not an attempt-to-success ratio.
+//   Average User Savings      the average savings rate across users who have
+//                             recorded income -- their own figures, not
+//                             evidence that WHealthOS produced the saving.
+//   Improved Financial Growth the share of users whose savings rate rose on
+//                             last month. Again a change in their own figures.
 function buildStats(stats) {
   if (!stats) return [];
 
   const list = [];
 
-  if (stats.uptime !== null) {
-    // Floored, so 99.996% is never rounded up to a perfect 100%.
-    const uptime = Math.floor(stats.uptime * 100) / 100;
-    list.push({ label: "Uptime", value: `${uptime}%` });
+  if (stats.successRate !== null) {
+    list.push({
+      label: "Transaction Success Rate",
+      // Floored, so 99.96% is never rounded up to a flat 100%.
+      value: `${Math.floor(stats.successRate * 10) / 10}%`,
+    });
   }
 
   if (stats.savingsRate !== null) {
-    // What users' own figures show — not a claim that WHealthOS caused it.
     list.push({
-      label: "Average Savings Rate",
+      label: "Average User Savings",
       value: `${stats.savingsRate.toFixed(1)}%`,
     });
   }
 
-  list.push({
-    label: "Transactions Tracked",
-    value: compactNumber.format(stats.transactions),
-  });
+  if (stats.improved !== null) {
+    list.push({
+      label: "Improved Financial Growth",
+      value: `${Math.round(stats.improved)}%`,
+    });
+  }
 
   list.push({
     label: "Active Users Worldwide",

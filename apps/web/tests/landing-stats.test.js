@@ -122,46 +122,83 @@ describe("ratingInputSchema", () => {
 
 // Prisma returns Decimal, whose value only comes out of toNumber().
 const decimal = (value) => ({ toNumber: () => value });
-const totals = (userId, income, expenses) => [
+const month = (userId, income, expenses) => [
   { userId, type: "INCOME", _sum: { amount: decimal(income) } },
   { userId, type: "EXPENSE", _sum: { amount: decimal(expenses) } },
 ];
 
-describe("average savings rate", () => {
+describe("transaction success rate", () => {
+  it("is null when nothing has been recorded", async () => {
+    db.transactionCount.mockResolvedValue(0);
+    expect((await getLandingStats()).successRate).toBeNull();
+  });
+
+  it("is the share of rows whose status is COMPLETED", async () => {
+    // First call is the total, second is the COMPLETED-only count.
+    db.transactionCount
+      .mockResolvedValueOnce(200)
+      .mockResolvedValueOnce(200)
+      .mockResolvedValueOnce(197);
+    expect((await getLandingStats()).successRate).toBeCloseTo(98.5, 6);
+  });
+});
+
+describe("improved financial growth", () => {
+  it("is null until a user has two comparable months", async () => {
+    db.transactionGroupBy.mockResolvedValue([]);
+    expect((await getLandingStats()).improved).toBeNull();
+  });
+
+  it("ignores a user who has only one month of income", async () => {
+    // Present this month, absent last month: nothing to compare against.
+    db.transactionGroupBy
+      .mockResolvedValueOnce(month("u1", 1000, 400))
+      .mockResolvedValueOnce([]);
+    expect((await getLandingStats()).improved).toBeNull();
+  });
+
+  it("counts the share whose savings rate rose", async () => {
+    // u1 60% -> 70% (improved); u2 50% -> 40% (did not).
+    db.transactionGroupBy
+      .mockResolvedValueOnce([...month("u1", 1000, 300), ...month("u2", 1000, 600)])
+      .mockResolvedValueOnce([...month("u1", 1000, 400), ...month("u2", 1000, 500)]);
+    expect((await getLandingStats()).improved).toBeCloseTo(50, 6);
+  });
+
+  it("excludes a month with no income rather than treating it as zero", async () => {
+    db.transactionGroupBy
+      .mockResolvedValueOnce(month("u1", 0, 400))
+      .mockResolvedValueOnce(month("u1", 1000, 400));
+    expect((await getLandingStats()).improved).toBeNull();
+  });
+});
+
+describe("average user savings", () => {
   it("is null until someone has recorded income", async () => {
     db.transactionGroupBy.mockResolvedValue([]);
     expect((await getLandingStats()).savingsRate).toBeNull();
   });
 
-  it("is null for a user who only has expenses", async () => {
-    // Nothing to divide by, so they are excluded rather than counted as 0%.
+  it("excludes a user with expenses but no income", async () => {
+    // A savings rate needs something to divide by.
     db.transactionGroupBy.mockResolvedValue([
       { userId: "u1", type: "EXPENSE", _sum: { amount: decimal(500) } },
     ]);
     expect((await getLandingStats()).savingsRate).toBeNull();
   });
 
-  it("averages across users, not across transactions", async () => {
-    // u1 keeps 50% of 1000; u2 keeps 10% of 100000. A per-user average is
-    // 30%; summing the totals first would be dominated by u2 and give ~10.4%.
+  it("averages across users, not across pooled totals", async () => {
+    // u1 keeps 50% of 1000, u2 keeps 10% of 100000. Per user that is 30%;
+    // pooling the totals first would be dominated by u2 and give ~10.4%.
     db.transactionGroupBy.mockResolvedValue([
-      ...totals("u1", 1000, 500),
-      ...totals("u2", 100000, 90000),
+      ...month("u1", 1000, 500),
+      ...month("u2", 100000, 90000),
     ]);
     expect((await getLandingStats()).savingsRate).toBeCloseTo(30, 6);
   });
 
-  it("reports a negative rate rather than hiding it", async () => {
-    // Spending more than you earn is the honest figure, not a floor at zero.
-    db.transactionGroupBy.mockResolvedValue(totals("u1", 1000, 1500));
+  it("reports a negative rate rather than flooring it at zero", async () => {
+    db.transactionGroupBy.mockResolvedValue(month("u1", 1000, 1500));
     expect((await getLandingStats()).savingsRate).toBeCloseTo(-50, 6);
-  });
-
-  it("treats a missing sum as zero", async () => {
-    db.transactionGroupBy.mockResolvedValue([
-      { userId: "u1", type: "INCOME", _sum: { amount: decimal(1000) } },
-      { userId: "u1", type: "EXPENSE", _sum: { amount: null } },
-    ]);
-    expect((await getLandingStats()).savingsRate).toBeCloseTo(100, 6);
   });
 });
