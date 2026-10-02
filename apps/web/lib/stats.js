@@ -45,14 +45,15 @@ async function uptimePercentage(now) {
   return (Math.min(recorded, expected) / expected) * 100;
 }
 
-// The average savings rate across users who have recorded income.
+// The average amount a user has kept: income minus expenses, averaged across
+// everyone who has recorded a transaction.
 //
-// This is what users' own figures show -- income minus expenses as a share of
-// income -- not a claim that WHealthOS produced the saving: there is no
-// baseline and no control group. Users with no recorded income are excluded,
-// because a rate needs something to divide by, and negative results are
-// returned as they are.
-async function averageSavingsRate() {
+// This is what users' own figures add up to, not a claim that WHealthOS
+// produced the saving -- there is no baseline and no control group. Someone
+// who has spent more than they recorded earning contributes a negative amount
+// rather than being floored at zero, because excluding them would flatter the
+// average.
+async function averageSavedAmount() {
   const rows = await adminDb.transaction.groupBy({
     by: ["userId", "type"],
     _sum: { amount: true },
@@ -68,13 +69,11 @@ async function averageSavingsRate() {
   }
 
   // Averaged per user, not over pooled totals: otherwise one large account
-  // dominates the figure.
-  const rates = [...totals.values()]
-    .filter(({ income }) => income > 0)
-    .map(({ income, expenses }) => ((income - expenses) / income) * 100);
+  // sets the figure for everybody.
+  const saved = [...totals.values()].map(({ income, expenses }) => income - expenses);
 
-  if (rates.length === 0) return null;
-  return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+  if (saved.length === 0) return null;
+  return saved.reduce((sum, amount) => sum + amount, 0) / saved.length;
 }
 
 // The share of recorded transactions that completed.
@@ -151,7 +150,7 @@ async function improvedSavingsShare() {
 // it may read through adminDb on the public landing page.
 export const getLandingStats = unstable_cache(
   async () => {
-    const [activeUsers, transactions, ratings, uptime, successRate, improved, savingsRate] =
+    const [activeUsers, transactions, ratings, uptime, successRate, improved, savedAmount] =
       await Promise.all([
       // "Active" means the user has actually used the app, not just signed up:
       // they created an account or recorded a transaction.
@@ -165,7 +164,7 @@ export const getLandingStats = unstable_cache(
       uptimePercentage(new Date()),
       transactionSuccessRate(),
       improvedSavingsShare(),
-      averageSavingsRate(),
+      averageSavedAmount(),
     ]);
 
     return {
@@ -176,7 +175,7 @@ export const getLandingStats = unstable_cache(
       uptime,
       successRate,
       improved,
-      savingsRate,
+      savedAmount,
     };
   },
   ["landing-stats"],

@@ -174,31 +174,33 @@ describe("improved financial growth", () => {
 });
 
 describe("average user savings", () => {
-  it("is null until someone has recorded income", async () => {
+  it("is null until someone has recorded a transaction", async () => {
     db.transactionGroupBy.mockResolvedValue([]);
-    expect((await getLandingStats()).savingsRate).toBeNull();
+    expect((await getLandingStats()).savedAmount).toBeNull();
   });
 
-  it("excludes a user with expenses but no income", async () => {
-    // A savings rate needs something to divide by.
-    db.transactionGroupBy.mockResolvedValue([
-      { userId: "u1", type: "EXPENSE", _sum: { amount: decimal(500) } },
-    ]);
-    expect((await getLandingStats()).savingsRate).toBeNull();
-  });
-
-  it("averages across users, not across pooled totals", async () => {
-    // u1 keeps 50% of 1000, u2 keeps 10% of 100000. Per user that is 30%;
-    // pooling the totals first would be dominated by u2 and give ~10.4%.
+  it("is income minus expenses, averaged per user", async () => {
+    // u1 keeps 500, u2 keeps 10000. The average is 5250.
     db.transactionGroupBy.mockResolvedValue([
       ...month("u1", 1000, 500),
       ...month("u2", 100000, 90000),
     ]);
-    expect((await getLandingStats()).savingsRate).toBeCloseTo(30, 6);
+    expect((await getLandingStats()).savedAmount).toBeCloseTo(5250, 6);
   });
 
-  it("reports a negative rate rather than flooring it at zero", async () => {
-    db.transactionGroupBy.mockResolvedValue(month("u1", 1000, 1500));
-    expect((await getLandingStats()).savingsRate).toBeCloseTo(-50, 6);
+  it("counts a user with expenses and no income as negative", async () => {
+    // Excluding them would flatter the average.
+    db.transactionGroupBy.mockResolvedValue([
+      { userId: "u1", type: "EXPENSE", _sum: { amount: decimal(500) } },
+    ]);
+    expect((await getLandingStats()).savedAmount).toBeCloseTo(-500, 6);
+  });
+
+  it("treats a missing sum as zero", async () => {
+    db.transactionGroupBy.mockResolvedValue([
+      { userId: "u1", type: "INCOME", _sum: { amount: decimal(1000) } },
+      { userId: "u1", type: "EXPENSE", _sum: { amount: null } },
+    ]);
+    expect((await getLandingStats()).savedAmount).toBeCloseTo(1000, 6);
   });
 });

@@ -2,6 +2,7 @@ import HeroSection from "@/components/hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { featuresData, howItWorksData, testimonialsData } from "@/data/landing";
+import { formatCompactCurrency } from "@/lib/format";
 import { getLandingStats } from "@/lib/stats";
 import Image from "next/image";
 import Link from "next/link";
@@ -20,9 +21,9 @@ const compactNumber = new Intl.NumberFormat("en-IN", {
 //   Transaction Success Rate  the share of recorded transactions whose status
 //                             is COMPLETED. A failed write never becomes a
 //                             row, so it is not an attempt-to-success ratio.
-//   Average User Savings      the average savings rate across users who have
-//                             recorded income -- their own figures, not
-//                             evidence that WHealthOS produced the saving.
+//   Average User Savings      income minus expenses, averaged per user --
+//                             what their own figures add up to, not evidence
+//                             that WHealthOS produced the saving.
 //   Improved Financial Growth the share of users whose savings rate rose on
 //                             last month. Again a change in their own figures.
 function buildStats(stats) {
@@ -38,10 +39,10 @@ function buildStats(stats) {
     });
   }
 
-  if (stats.savingsRate !== null) {
+  if (stats.savedAmount !== null) {
     list.push({
       label: "Average User Savings",
-      value: `${stats.savingsRate.toFixed(1)}%`,
+      value: formatCompactCurrency(stats.savedAmount),
     });
   }
 
