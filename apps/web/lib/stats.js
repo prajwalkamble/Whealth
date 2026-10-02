@@ -44,11 +44,45 @@ async function uptimePercentage(now) {
   return (Math.min(recorded, expected) / expected) * 100;
 }
 
+// The average savings rate across users who have recorded income.
+//
+// This is what users' own figures show, not a claim that WHealthOS produced
+// the saving: there is no baseline to compare against and no control group, so
+// any statement about the product improving outcomes would be unsupported.
+// Users with no recorded income are excluded, because a savings rate needs
+// something to divide by.
+//
+// Negative results are returned as they are. If people are spending more than
+// they earn, that is the honest figure.
+async function averageSavingsRate() {
+  const rows = await adminDb.transaction.groupBy({
+    by: ["userId", "type"],
+    _sum: { amount: true },
+  });
+
+  const totals = new Map();
+  for (const row of rows) {
+    const entry = totals.get(row.userId) ?? { income: 0, expenses: 0 };
+    const amount = row._sum.amount?.toNumber() ?? 0;
+    if (row.type === "INCOME") entry.income += amount;
+    else entry.expenses += amount;
+    totals.set(row.userId, entry);
+  }
+
+  const rates = [...totals.values()]
+    .filter(({ income }) => income > 0)
+    .map(({ income, expenses }) => ((income - expenses) / income) * 100);
+
+  if (rates.length === 0) return null;
+  return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+}
+
 // Aggregates only -- no row from any user leaves this function -- which is why
 // it may read through adminDb on the public landing page.
 export const getLandingStats = unstable_cache(
   async () => {
-    const [activeUsers, transactions, ratings, uptime] = await Promise.all([
+    const [activeUsers, transactions, ratings, uptime, savingsRate] =
+      await Promise.all([
       // "Active" means the user has actually used the app, not just signed up:
       // they created an account or recorded a transaction.
       adminDb.user.count({
@@ -59,6 +93,7 @@ export const getLandingStats = unstable_cache(
       adminDb.transaction.count(),
       adminDb.rating.aggregate({ _avg: { score: true }, _count: true }),
       uptimePercentage(new Date()),
+      averageSavingsRate(),
     ]);
 
     return {
@@ -67,6 +102,7 @@ export const getLandingStats = unstable_cache(
       rating: ratings._count > 0 ? ratings._avg.score : null,
       ratingCount: ratings._count,
       uptime,
+      savingsRate,
     };
   },
   ["landing-stats"],

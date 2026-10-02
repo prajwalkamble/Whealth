@@ -11,19 +11,19 @@ const compactNumber = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 1,
 });
 
-// Real values only. Uptime and rating have no value until there is data behind
-// them (a completed uptime slot, a first rating), and are left out until then
-// rather than shown as a made-up number.
+// Real values only. Each tile is computed from the database, and any figure
+// with nothing behind it yet is left out rather than shown as a made-up
+// number.
+//
+// Note on what these deliberately are not: there is no "transaction success
+// rate" (every transaction is written as COMPLETED, so it would read 100% by
+// construction) and no "financial growth" figure (there is no baseline to
+// measure growth against). Both would be claims the data cannot support, which
+// matters for a financial product.
 function buildStats(stats) {
   if (!stats) return [];
 
-  const list = [
-    { label: "Active Users", value: compactNumber.format(stats.activeUsers) },
-    {
-      label: "Transactions Tracked",
-      value: compactNumber.format(stats.transactions),
-    },
-  ];
+  const list = [];
 
   if (stats.uptime !== null) {
     // Floored, so 99.996% is never rounded up to a perfect 100%.
@@ -31,9 +31,23 @@ function buildStats(stats) {
     list.push({ label: "Uptime", value: `${uptime}%` });
   }
 
-  if (stats.rating !== null) {
-    list.push({ label: "User Rating", value: `${stats.rating.toFixed(1)}/5` });
+  if (stats.savingsRate !== null) {
+    // What users' own figures show — not a claim that WHealthOS caused it.
+    list.push({
+      label: "Average Savings Rate",
+      value: `${stats.savingsRate.toFixed(1)}%`,
+    });
   }
+
+  list.push({
+    label: "Transactions Tracked",
+    value: compactNumber.format(stats.transactions),
+  });
+
+  list.push({
+    label: "Active Users Worldwide",
+    value: compactNumber.format(stats.activeUsers),
+  });
 
   return list;
 }

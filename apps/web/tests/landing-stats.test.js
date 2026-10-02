@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   userCount: vi.fn(),
   transactionCount: vi.fn(),
+  transactionGroupBy: vi.fn(),
   ratingAggregate: vi.fn(),
   uptimeFirst: vi.fn(),
   uptimeCount: vi.fn(),
@@ -13,7 +14,10 @@ const db = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({
   adminDb: {
     user: { count: db.userCount },
-    transaction: { count: db.transactionCount },
+    transaction: {
+      count: db.transactionCount,
+      groupBy: db.transactionGroupBy,
+    },
     rating: { aggregate: db.ratingAggregate },
     uptimeCheck: { findFirst: db.uptimeFirst, count: db.uptimeCount },
   },
@@ -33,6 +37,7 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   db.userCount.mockResolvedValue(0);
   db.transactionCount.mockResolvedValue(0);
+  db.transactionGroupBy.mockResolvedValue([]);
   db.ratingAggregate.mockResolvedValue({ _avg: { score: null }, _count: 0 });
   db.uptimeFirst.mockResolvedValue(null);
   db.uptimeCount.mockResolvedValue(0);
@@ -112,5 +117,51 @@ describe("ratingInputSchema", () => {
 
   it.each([0, 6, 3.5, -1, "abc", null])("rejects %s", (score) => {
     expect(ratingInputSchema.safeParse(score).success).toBe(false);
+  });
+});
+
+// Prisma returns Decimal, whose value only comes out of toNumber().
+const decimal = (value) => ({ toNumber: () => value });
+const totals = (userId, income, expenses) => [
+  { userId, type: "INCOME", _sum: { amount: decimal(income) } },
+  { userId, type: "EXPENSE", _sum: { amount: decimal(expenses) } },
+];
+
+describe("average savings rate", () => {
+  it("is null until someone has recorded income", async () => {
+    db.transactionGroupBy.mockResolvedValue([]);
+    expect((await getLandingStats()).savingsRate).toBeNull();
+  });
+
+  it("is null for a user who only has expenses", async () => {
+    // Nothing to divide by, so they are excluded rather than counted as 0%.
+    db.transactionGroupBy.mockResolvedValue([
+      { userId: "u1", type: "EXPENSE", _sum: { amount: decimal(500) } },
+    ]);
+    expect((await getLandingStats()).savingsRate).toBeNull();
+  });
+
+  it("averages across users, not across transactions", async () => {
+    // u1 keeps 50% of 1000; u2 keeps 10% of 100000. A per-user average is
+    // 30%; summing the totals first would be dominated by u2 and give ~10.4%.
+    db.transactionGroupBy.mockResolvedValue([
+      ...totals("u1", 1000, 500),
+      ...totals("u2", 100000, 90000),
+    ]);
+    expect((await getLandingStats()).savingsRate).toBeCloseTo(30, 6);
+  });
+
+  it("reports a negative rate rather than hiding it", async () => {
+    // Spending more than you earn is the honest figure, not a floor at zero.
+    db.transactionGroupBy.mockResolvedValue(totals("u1", 1000, 1500));
+    expect((await getLandingStats()).savingsRate).toBeCloseTo(-50, 6);
+  });
+
+  it("treats a missing sum as zero", async () => {
+    db.transactionGroupBy.mockResolvedValue([
+      { userId: "u1", type: "INCOME", _sum: { amount: decimal(1000) } },
+      { userId: "u1", type: "EXPENSE", _sum: { amount: null } },
+    ]);
+    expect((await getLandingStats()).savingsRate).toBeCloseTo(100, 6);
   });
 });
