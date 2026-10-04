@@ -3,7 +3,13 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /* .theme-light carries the same tokens as :root so a subtree can be forced
+     light inside a dark page. The landing demo uses it: the dashboard there is
+     shown in the opposite theme to the site, and Tailwind only ships a .dark
+     class -- there is no .light to switch back with. */
+  :root,
+  .theme-light {
+    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -42,6 +48,7 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
   .dark {
+    color-scheme: dark;
     /* Lifted off near-black: the page sits at 11% rather than 3.9%, with
        cards a shade above it so they still read as raised. */
     --background: 225 8% 11%;
@@ -1004,5 +1011,114 @@
   .animate-float-note {
     animation: none;
     transform: rotate(-8deg);
+  }
+}
+
+/* Section settle for the marketing pages.
+ *
+ * Deliberately CSS-only. The About page is a server component and pulling in a
+ * motion library would mean shipping a client bundle for decoration. A
+ * scroll-driven animation needs no JavaScript at all, and where the browser
+ * does not support it the element is simply in its final position -- which is
+ * the state we want anyway.
+ *
+ * Transform only, never opacity. An opacity fade leaves every section below
+ * the fold at zero until it is scrolled into range, which means a full-page
+ * screenshot, a print, or a PDF export captures an empty page. On a page whose
+ * job is to be trusted, content that is conditionally invisible is not worth a
+ * fade. The section slides a short distance into place instead, and is legible
+ * the entire time.
+ *
+ * Transform stays on the compositor, so this costs no layout work. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: revealIn linear both;
+      animation-timeline: view();
+      /* Settles well before the section is centred, so it reads as arriving
+         rather than as something the reader has to wait for. */
+      animation-range: entry 0% cover 22%;
+    }
+  }
+}
+
+@keyframes revealIn {
+  from {
+    transform: translateY(0.75rem);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Landing hero: the dashboard pans as the hero scrolls.
+ *
+ * The frame is a 16:9 window over a full-length dashboard capture, so the
+ * image is taller than what the frame shows. Tying the pan to the scroll
+ * position means the movement is the reader's, not a loop running on its own:
+ * scrolling reveals the transactions, budget and accounts below the fold of
+ * the screenshot. It stops when they stop.
+ *
+ * No JavaScript, so the landing hero stays a server component. Where
+ * scroll-driven animations are unsupported, or motion is reduced, the image
+ * simply sits at the top of the frame showing the dashboard's own top, which
+ * is the state we want anyway. Transform only, so it stays on the compositor.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .dash-pan {
+      animation: dashPan linear both;
+      animation-timeline: view();
+      /* Starts at 35% of cover, not 0%. The hero is already partway through
+         its cover range when the page loads, so measuring from 0 left the
+         image pre-panned by ~70px at rest and clipped the metric-card labels.
+         From 35% it sits at the dashboard's own top until the reader scrolls. */
+      animation-range: cover 35% cover 100%;
+    }
+  }
+}
+
+@keyframes dashPan {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    /* The image is 1350/1440 of its width tall and the frame shows 9/16 of it,
+       so ~40% of the image hangs below the frame. Stopping short of that keeps
+       the last row from butting against the edge. */
+    transform: translateY(-34%);
+  }
+}
+
+/* Hero headline: the words rise in on load.
+ *
+ * CSS rather than GSAP because the headline is the LCP element -- it must be
+ * painted by the server's HTML and animate from there, not wait on a client
+ * bundle. Each word carries its own delay through nth-child, so there is no
+ * per-word inline style and nothing to hydrate.
+ *
+ * transform and opacity only, and the whole thing is behind a reduced-motion
+ * guard: with motion reduced the words are simply already in place. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-headline > span {
+    display: inline-block;
+    animation: headlineWord 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .hero-headline > span:nth-child(1) { animation-delay: 0.05s; }
+  .hero-headline > span:nth-child(2) { animation-delay: 0.13s; }
+  .hero-headline > span:nth-child(3) { animation-delay: 0.21s; }
+  .hero-headline > span:nth-child(4) { animation-delay: 0.29s; }
+  .hero-headline > span:nth-child(5) { animation-delay: 0.37s; }
+}
+
+@keyframes headlineWord {
+  from {
+    opacity: 0;
+    /* A small rise, not a slide: the line should settle, not travel. */
+    transform: translateY(0.4em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

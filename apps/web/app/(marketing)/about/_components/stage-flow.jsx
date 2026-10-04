@@ -38,7 +38,7 @@ const StageFlow = ({ stages, label, className }) => (
 
         <div
           className={cn(
-            "flex h-full w-full flex-col rounded-xl border p-4 transition-colors",
+            "flex h-full w-full flex-col rounded-xl border p-4",
             stage.planned ? "border-dashed bg-muted/30" : "bg-card"
           )}
         >

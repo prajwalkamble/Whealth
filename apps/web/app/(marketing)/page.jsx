@@ -1,65 +1,16 @@
 import HeroSection from "@/components/hero";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { featuresData, howItWorksData, testimonialsData } from "@/data/landing";
-import { formatCompactCurrency } from "@/lib/format";
+import { featuresData, howItWorksData } from "@/data/landing";
+import { buildStatTiles } from "@/lib/stat-tiles";
 import { getLandingStats } from "@/lib/stats";
-import Image from "next/image";
 import Link from "next/link";
 
-const compactNumber = new Intl.NumberFormat("en-IN", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
-
-// Real values only. Every tile is computed from the database, and a figure
-// with nothing behind it yet is left out rather than shown as a guess.
-//
-// What each one actually measures, since two of the labels could be read more
-// broadly than the data supports:
-//
-//   Transaction Success Rate  the share of recorded transactions whose status
-//                             is COMPLETED. A failed write never becomes a
-//                             row, so it is not an attempt-to-success ratio.
-//   Average User Savings      income minus expenses, averaged per user --
-//                             what their own figures add up to, not evidence
-//                             that WHealthOS produced the saving.
-//   Improved Financial Growth the share of users whose savings rate rose on
-//                             last month. Again a change in their own figures.
-function buildStats(stats) {
-  if (!stats) return [];
-
-  const list = [];
-
-  if (stats.successRate !== null) {
-    list.push({
-      label: "Transaction Success Rate",
-      // Floored, so 99.96% is never rounded up to a flat 100%.
-      value: `${Math.floor(stats.successRate * 10) / 10}%`,
-    });
-  }
-
-  if (stats.savedAmount !== null) {
-    list.push({
-      label: "Average User Savings",
-      value: formatCompactCurrency(stats.savedAmount),
-    });
-  }
-
-  if (stats.improved !== null) {
-    list.push({
-      label: "Improved Financial Growth",
-      value: `${Math.round(stats.improved)}%`,
-    });
-  }
-
-  list.push({
-    label: "Active Users Worldwide",
-    value: compactNumber.format(stats.activeUsers),
-  });
-
-  return list;
-}
+// The band drops a figure it cannot compute rather than showing a gap; the
+// About page renders the same tiles and shows the gap. Labels and formatting
+// are shared, so the two cannot drift.
+const buildStats = (stats) =>
+  buildStatTiles(stats).filter(({ value }) => value !== null);
 
 // Literal class names so Tailwind generates them; the column count follows how
 // many stats are shown.
@@ -92,7 +43,7 @@ export default async function Home() {
             >
               {statsData.map((stat) => (
                 <div key={stat.label} className="text-center">
-                  <div className="text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+                  <div className="mb-2 text-4xl font-bold tabular-nums tracking-tight text-primary">
                     {stat.value}
                   </div>
                   <div className="text-muted-foreground">{stat.label}</div>
@@ -128,7 +79,7 @@ export default async function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {howItWorksData.map((step, index) => (
               <div key={index} className="text-center">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
                   {step.icon}
                 </div>
                 <h3 className="text-xl font-semibold mb-4">{step.title}</h3>
@@ -139,54 +90,26 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="py-20">
+      <section className="border-t py-20">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">
-            What Our Users Say
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonialsData.map((testimonial, index) => (
-              <Card key={index} className="p-6">
-                <CardContent className="space-y-4 pt-4">
-                  <div className="flex items-center mb-4">
-                    <Image
-                      src={testimonial.image}
-                      alt={testimonial.name}
-                      width={40}
-                      height={40}
-                      className="rounded-full"
-                    />
-                    <div className="ml-4">
-                      <div className="font-semibold">{testimonial.name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {testimonial.role}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-muted-foreground">{testimonial.quote}</p>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-balance text-3xl font-bold tracking-tight">
+              Ready to take control of your finances?
+            </h2>
+            {/* No user count. There is nothing here that cannot be backed up. */}
+            <p className="mt-4 text-muted-foreground">
+              Bring your accounts, spending and budgets into one place, and see
+              where your money actually goes.
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-3">
+              <Button size="lg" asChild>
+                <Link href="/sign-up">Get Started</Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link href="/demo">Explore WHealthOS</Link>
+              </Button>
+            </div>
           </div>
-        </div>
-      </section>
-
-      <section className="py-20 bg-blue-600">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Ready to Take Control of Your Finances?
-          </h2>
-          <p className="text-blue-100 mb-8 max-w-2xl mx-auto">
-            {" "}
-            Join thousands of users who are already managing their finances smarter with WHealthOS
-          </p>
-          <Button
-            size="lg"
-            className="bg-white text-blue-600 hover:bg-blue-50 animate-pulse"
-            asChild
-          >
-            <Link href="/dashboard">Start Free Trial</Link>
-          </Button>
         </div>
       </section>
     </div>

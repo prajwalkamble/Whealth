@@ -13,8 +13,14 @@ import { formatCurrency, formatCompactCurrency } from "@/lib/format";
 import { APP_TIME_ZONE, monthBounds } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
+// data-figure is a presentational hook, not behaviour: it gives the landing
+// page's walkthrough a stable handle on the number so it can count it up
+// without re-rendering the card, and gives tests something to assert on.
 const Figure = ({ value, tone }) => (
-  <div className={cn("text-3xl font-bold tracking-tight tabular-nums", tone)}>
+  <div
+    data-figure
+    className={cn("text-3xl font-bold tracking-tight tabular-nums", tone)}
+  >
     {value}
   </div>
 );

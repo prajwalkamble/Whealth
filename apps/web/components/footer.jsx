@@ -116,7 +116,7 @@ const Footer = () => {
 
   return (
     <footer className="border-t bg-background">
-      <div className="container mx-auto px-4">
+      <div className="mx-auto w-full max-w-[120rem] px-4 md:px-6 lg:px-8">
         {/* Brand block plus the four link columns. The brand takes roughly a
             quarter of the width once there is room for the full row. */}
         <div
@@ -127,12 +127,22 @@ const Footer = () => {
         >
           <div className="lg:pr-8">
             <Link href="/" className="inline-flex items-center">
+              {/* Same pairing as the header: the navy wordmark is unreadable
+                  on the dark background. */}
               <Image
                 src="/logo.png"
                 alt="WHealthOS"
                 width={180}
                 height={60}
-                className="h-9 w-auto object-contain"
+                className="h-9 w-auto object-contain dark:hidden"
+              />
+              <Image
+                src="/logo-dark.png"
+                alt=""
+                aria-hidden
+                width={180}
+                height={60}
+                className="hidden h-9 w-auto object-contain dark:block"
               />
             </Link>
 

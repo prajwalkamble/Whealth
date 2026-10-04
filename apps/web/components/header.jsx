@@ -25,14 +25,27 @@ import HeaderNav, { NAV } from "./header-nav";
 const Header = () => {
   return (
     <div className="fixed top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
-      <nav className="container relative mx-auto flex items-center gap-6 px-4 py-3">
+      <nav className="relative flex w-full items-center gap-6 px-4 py-3 md:px-6 lg:px-8">
         <Link href="/" className="shrink-0">
+          {/* Two files rather than a CSS filter: the wordmark is near-black
+              navy, which disappears against the dark background, and no filter
+              lifts it without flattening the gradient on the bar chart.
+              logo-dark.png is the same mark with lightness remapped and hue
+              untouched. Only one carries the accessible name. */}
           <Image
             src="/logo.png"
             alt="WHealthOS"
             height={60}
             width={150}
-            className="h-9 w-auto cursor-pointer object-contain"
+            className="h-9 w-auto cursor-pointer object-contain dark:hidden"
+          />
+          <Image
+            src="/logo-dark.png"
+            alt=""
+            aria-hidden
+            height={60}
+            width={150}
+            className="hidden h-9 w-auto cursor-pointer object-contain dark:block"
           />
         </Link>
 

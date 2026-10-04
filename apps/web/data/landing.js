@@ -2,7 +2,7 @@ import {
   BarChart3,
   PieChart,
   CreditCard,
-  Globe,
+  Search,
   Zap,
   ReceiptIndianRupee,
 } from "lucide-react";
@@ -10,55 +10,59 @@ import {
 // Features Data
 export const featuresData = [
   {
-    icon: <BarChart3 className="h-8 w-8 text-blue-600" />,
-    title: "Advanced Analytics",
+    icon: <BarChart3 className="h-8 w-8 text-primary" />,
+    title: "Analytics",
     description:
-      "Get detailed insights into your spending patterns with AI-powered analytics",
+      "Cash flow across months, spending by category, income sources and savings rate.",
   },
   {
-    icon: <ReceiptIndianRupee className="h-8 w-8 text-blue-600" />,
-    title: "Smart Receipt Scanner",
+    icon: <ReceiptIndianRupee className="h-8 w-8 text-primary" />,
+    title: "Receipt scanning",
     description:
-      "Extract data automatically from receipts using advanced AI technology",
+      "Photograph a receipt and it is read into a draft transaction for you to confirm.",
   },
   {
-    icon: <PieChart className="h-8 w-8 text-blue-600" />,
-    title: "Budget Planning",
-    description: "Create and manage budgets with intelligent recommendations",
+    icon: <PieChart className="h-8 w-8 text-primary" />,
+    title: "Budgets",
+    description:
+      "Set a monthly limit, track it against real spending, and get an email before you pass it.",
   },
   {
-    icon: <CreditCard className="h-8 w-8 text-blue-600" />,
-    title: "Multi-Account Support",
-    description: "Manage multiple accounts and credit cards in one place",
+    icon: <CreditCard className="h-8 w-8 text-primary" />,
+    title: "Multiple accounts",
+    description:
+      "Current and savings accounts in one place, with balances that stay in step.",
   },
   {
-    icon: <Globe className="h-8 w-8 text-blue-600" />,
-    title: "Multi-Currency",
-    description: "Support for multiple currencies with real-time conversion",
+    icon: <Search className="h-8 w-8 text-primary" />,
+    title: "Search",
+    description:
+      "Find any transaction or account across your own records.",
   },
   {
-    icon: <Zap className="h-8 w-8 text-blue-600" />,
-    title: "Automated Insights",
-    description: "Get automated financial insights and recommendations",
+    icon: <Zap className="h-8 w-8 text-primary" />,
+    title: "Monthly summary",
+    description:
+      "A monthly email covering what changed, with written commentary on the figures.",
   },
 ];
 
 // How It Works Data
 export const howItWorksData = [
   {
-    icon: <CreditCard className="h-8 w-8 text-blue-600" />,
+    icon: <CreditCard className="h-8 w-8 text-primary" />,
     title: "1. Create Your Account",
     description:
       "Get started in minutes with our simple and secure sign-up process",
   },
   {
-    icon: <BarChart3 className="h-8 w-8 text-blue-600" />,
+    icon: <BarChart3 className="h-8 w-8 text-primary" />,
     title: "2. Track Your Spending",
     description:
       "Automatically categorize and track your transactions in real-time",
   },
   {
-    icon: <PieChart className="h-8 w-8 text-blue-600" />,
+    icon: <PieChart className="h-8 w-8 text-primary" />,
     title: "3. Get Insights",
     description:
       "Receive AI-powered insights and recommendations to optimize your finances",
@@ -66,26 +70,7 @@ export const howItWorksData = [
 ];
 
 // Testimonials Data
-export const testimonialsData = [
-  {
-    name: "Sarah Johnson",
-    role: "Small Business Owner",
-    image: "https://randomuser.me/api/portraits/women/75.jpg",
-    quote:
-      "WHealthOS has transformed how I manage my business finances. The AI insights have helped me identify cost-saving opportunities I never knew existed.",
-  },
-  {
-    name: "Michael Chen",
-    role: "Freelancer",
-    image: "https://randomuser.me/api/portraits/men/75.jpg",
-    quote:
-      "The receipt scanning feature saves me hours each month. Now I can focus on my work instead of manual data entry and expense tracking.",
-  },
-  {
-    name: "Emily Rodriguez",
-    role: "Financial Advisor",
-    image: "https://randomuser.me/api/portraits/women/74.jpg",
-    quote:
-      "I recommend WHealthOS to all my clients. The multi-currency support and detailed analytics make it perfect for international investors.",
-  },
-];
+// testimonialsData removed: it held three invented people with portraits from
+// a fake-person generator, and one of the quotes praised multi-currency, which
+// is not built. There are no real testimonials yet, so the landing page shows
+// none rather than borrowed ones.

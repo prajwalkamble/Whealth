@@ -27,9 +27,17 @@ const Icon = ({ name, className }) => {
   return <Component className={className} />;
 };
 
-// Each plan carries its own accent, rather than all three using the theme's
-// primary colour. This is the marketing page: the point of the three columns
-// is that they read as distinct tiers at a glance.
+// The three tiers are told apart by weight, not by hue.
+//
+// They used to carry a blue and a violet of their own, including a violet to
+// indigo gradient on the top button. Two problems with that: the colours were
+// fixed, so a visitor who chose a different accent in the theme customiser
+// still got blue and violet, and a gradient CTA on a pricing table reads as
+// decoration on a page whose job is to be trusted with money.
+//
+// The ladder is now quiet to loud within the active theme: an outlined button,
+// then the theme's own accent, then an inverted solid. That still separates
+// the tiers at a glance and it follows whatever theme is set.
 const ACCENTS = {
   neutral: {
     name: "text-foreground",
@@ -39,19 +47,18 @@ const ACCENTS = {
     badge: "",
   },
   blue: {
-    name: "text-blue-600 dark:text-blue-400",
-    button: "bg-blue-600 text-white shadow-sm hover:bg-blue-700",
-    pill: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-    outline: "border-x-2 border-blue-500/50",
-    badge: "bg-blue-600 text-white",
+    name: "text-primary",
+    button: "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
+    pill: "bg-primary/10 text-primary",
+    outline: "border-x-2 border-primary/50",
+    badge: "bg-primary text-primary-foreground",
   },
   violet: {
-    name: "text-violet-600 dark:text-violet-400",
-    button:
-      "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-sm hover:from-violet-700 hover:to-indigo-700",
-    pill: "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+    name: "text-foreground",
+    button: "bg-foreground text-background shadow-sm hover:bg-foreground/90",
+    pill: "bg-foreground/10 text-foreground",
     outline: "",
-    badge: "bg-violet-600 text-white",
+    badge: "bg-foreground text-background",
   },
 };
 
@@ -168,7 +175,7 @@ const PricingPlans = ({ defaultPeriod = "monthly" }) => {
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-colors",
                   active
-                    ? "bg-blue-600 text-white shadow-sm"
+                    ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -270,7 +277,7 @@ const PricingPlans = ({ defaultPeriod = "monthly" }) => {
                       "relative border-b border-t-2 border-t-transparent p-6 text-center align-top",
                       columnSide(plan, index),
                       plan.popular &&
-                        "rounded-t-xl border-t-blue-500/50 bg-blue-500/[0.04]"
+                        "rounded-t-xl border-t-primary/50 bg-primary/[0.04]"
                     )}
                   >
                     {plan.popular && (
@@ -345,7 +352,7 @@ const PricingPlans = ({ defaultPeriod = "monthly" }) => {
                         key={plan.id}
                         className={cn(
                           "border-b",
-                          plan.popular && "bg-blue-500/[0.06]",
+                          plan.popular && "bg-primary/[0.06]",
                           columnEdge(plan, planIndex, index)
                         )}
                       />
@@ -376,8 +383,15 @@ const PricingPlans = ({ defaultPeriod = "monthly" }) => {
                       <td
                         key={plan.id}
                         className={cn(
-                          "border-b p-4 text-center",
-                          plan.popular && "bg-blue-500/[0.06]",
+                          // relative matters: the sr-only span below is
+                          // position:absolute, and without a positioned
+                          // ancestor its containing block is the document
+                          // rather than this cell. It then escaped the
+                          // overflow-x-auto wrapper and planted itself at the
+                          // table's full 811px width, which gave the whole
+                          // page a horizontal scroll at mobile widths.
+                          "relative border-b p-4 text-center",
+                          plan.popular && "bg-primary/[0.06]",
                           columnEdge(plan, planIndex, index)
                         )}
                       >
@@ -414,8 +428,15 @@ const PricingPlans = ({ defaultPeriod = "monthly" }) => {
                       <td
                         key={plan.id}
                         className={cn(
-                          "border-b p-4 text-center",
-                          plan.popular && "bg-blue-500/[0.06]",
+                          // relative matters: the sr-only span below is
+                          // position:absolute, and without a positioned
+                          // ancestor its containing block is the document
+                          // rather than this cell. It then escaped the
+                          // overflow-x-auto wrapper and planted itself at the
+                          // table's full 811px width, which gave the whole
+                          // page a horizontal scroll at mobile widths.
+                          "relative border-b p-4 text-center",
+                          plan.popular && "bg-primary/[0.06]",
                           columnEdge(plan, planIndex, index)
                         )}
                       >
