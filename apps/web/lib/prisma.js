@@ -2,11 +2,30 @@ import { PrismaClient } from "@whealthos/database";
 import { auth } from "@clerk/nextjs/server";
 import { ActionError } from "./action-error";
 
+// Caps the connection pool unless the URL already says otherwise.
+//
+// Prisma's default is num_cpus * 2 + 1 -- nine on a four-core machine -- per
+// client. These run against Supabase's session pooler, where connections are
+// scarce and held for the length of a session, and every page here opens an
+// interactive transaction. Two or three clients at that default (a dev server
+// left running beside another, dev beside production) exhaust the pooler, and
+// the symptom is not a clear error: transactions intermittently fail to get a
+// connection and pages return 500 at random.
+//
+// Set it in the URL to override; this only fills in a default.
+const pooled = (url) => {
+  if (!url || url.includes("connection_limit")) return url;
+  const join = url.includes("?") ? "&" : "?";
+  return `${url}${join}connection_limit=5&pool_timeout=20`;
+};
+
 // Request-scoped client. Connects as the application role, which is subject to
 // the row-level security policies in prisma/migrations/*_enable_rls. Every
 // query through this client MUST run inside withTenant/withCurrentTenant so the
 // policies have a tenant to match against; without one they match nothing.
-export const db = globalThis.prisma || new PrismaClient();
+export const db =
+  globalThis.prisma ||
+  new PrismaClient({ datasourceUrl: pooled(process.env.DATABASE_URL) });
 
 // Background jobs (cron, webhooks) have no Clerk session and legitimately need
 // to enumerate every tenant. They connect through DIRECT_URL, whose role is a
@@ -16,7 +35,7 @@ export const db = globalThis.prisma || new PrismaClient();
 // withTenant(). tests/rls-isolation.test.js asserts the membership holds.
 export const adminDb =
   globalThis.prismaAdmin ||
-  new PrismaClient({ datasourceUrl: process.env.DIRECT_URL });
+  new PrismaClient({ datasourceUrl: pooled(process.env.DIRECT_URL) });
 
 if (process.env.NODE_ENV !== "production") {
   globalThis.prisma = db;

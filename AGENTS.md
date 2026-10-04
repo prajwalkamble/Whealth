@@ -37,6 +37,19 @@ pnpm db:migrate · pnpm db:generate · pnpm db:studio
 
 ## Things that bite
 
+- **`pnpm db:migrate` does not regenerate the Prisma client.** It runs
+  `prisma migrate deploy`, not `migrate dev`, so a new model exists in the
+  database but not on the client and every call reads as
+  `Cannot read properties of undefined`. Run `pnpm db:generate` after any
+  schema change, and restart the dev server so it picks up the new client.
+
+- **A new table needs its own RLS policy.** `ENABLE` + `FORCE ROW LEVEL
+  SECURITY` plus an isolation policy on `app_current_tenant()`, in the same
+  migration. Without it the table is readable across tenants.
+
+- **A new route needs adding to `isProtectedRoute`** in `apps/web/middleware.js`,
+  or it is reachable signed out.
+
 - **Every export of a `"use server"` module is a public HTTP endpoint**, and
   it must be an async function — a `const` export fails the build. Reads
   belong in `apps/web/lib/queries.js`, which is a plain module.

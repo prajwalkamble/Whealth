@@ -33,6 +33,9 @@ model User {
   transactions Transaction[]
   accounts     Account[]
   budgets      Budget[]
+  cards        Card[]
+  goals        Goal[]
+  contributions GoalContribution[]
   rating       Rating?
   // Light / dark / system, chosen in the app and kept on the account so the
   // choice follows the user to another browser or device.
@@ -55,6 +58,7 @@ model Account {
   userId       String
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+  cards        Card[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -115,17 +119,135 @@ enum TransactionStatus {
   FAILED
 }
 
+// A planned spending limit.
+//
+// Migrated additively from one-budget-per-user: `category` is null on the
+// overall monthly budget -- the single row that already existed and that the
+// dashboard and the alert cron still read -- and set on a per-category budget.
+// The old @unique on userId is gone, replaced by a pair of constraints
+// declared in the migration: one budget per category, and at most one overall.
 model Budget {
   id            String    @id @default(uuid())
   amount        Decimal
+  // Null means the overall monthly budget. Otherwise a transaction category.
+  category      String?
   lastAlertSent DateTime? // Track when the last alert was sent
-  userId        String    @unique
+  userId        String
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  @@unique([userId, category], map: "budgets_user_category_key")
   @@index([userId])
   @@map("budgets")
+}
+
+// A card is reference metadata, not an instrument. It records what a person
+// needs to recognise the card and track its limits -- never anything that
+// could be used to transact. There is deliberately no column for a full card
+// number, a CVV or a PIN, and `last4` is a label rather than an identifier.
+//
+// `accountId` is optional: a card may be settled from one of the user's
+// accounts, or recorded on its own.
+model Card {
+  id          String      @id @default(uuid())
+  name        String
+  issuer      String
+  network     CardNetwork
+  type        CardType
+  // Four digits, stored as text so a leading zero survives.
+  last4       String
+  expiryMonth Int
+  expiryYear  Int
+  // Credit cards only; null on a debit card, which has no limit of its own.
+  creditLimit Decimal?
+  // Day of the month, 1-31. Null when the user has not recorded it.
+  billingDay  Int?
+  dueDay      Int?
+  status      CardStatus  @default(ACTIVE)
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId   String?
+  // SetNull rather than Cascade: deleting an account should not silently
+  // delete the record of a card that settled from it.
+  account     Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([userId])
+  // Supports the cards_isolation RLS predicate on the list page's read path
+  @@index([userId, status], map: "cards_user_status_idx")
+  @@index([accountId])
+  @@map("cards")
+}
+
+enum CardNetwork {
+  VISA
+  MASTERCARD
+  RUPAY
+  AMEX
+  DINERS
+  OTHER
+}
+
+enum CardType {
+  CREDIT
+  DEBIT
+}
+
+enum CardStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+// A financial objective and the money put toward it.
+//
+// There is no currentAmount column on purpose. Progress is the sum of the
+// contributions below, derived on read the same way budget spend is: a total
+// stored alongside the target is a second source of truth that drifts the
+// moment a contribution is corrected or removed.
+model Goal {
+  id           String             @id @default(uuid())
+  name         String
+  description  String?
+  targetAmount Decimal
+  // Optional: not every objective has a deadline.
+  targetDate   DateTime?
+  status       GoalStatus         @default(ACTIVE)
+  userId       String
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contributions GoalContribution[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([userId])
+  // Supports the goals_isolation RLS predicate on the list page's read path
+  @@index([userId, status], map: "goals_user_status_idx")
+  @@map("goals")
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+// One payment toward a goal. Carries userId of its own so the RLS predicate
+// is a column check rather than a join through the goal.
+model GoalContribution {
+  id        String   @id @default(uuid())
+  amount    Decimal
+  date      DateTime
+  note      String?
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([goalId])
+  @@index([userId])
+  @@map("goal_contributions")
 }
 
 // One rating per user, which they can change. Averaged for the landing page.

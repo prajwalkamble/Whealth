@@ -1,3 +1,4 @@
+import { NEAR_LIMIT_PERCENT } from "@/lib/budget-pace";
 import { sendEmail } from "@/actions/send-email";
 import { adminDb, withTenant } from "../prisma";
 import { inngest } from "./client";
@@ -63,6 +64,10 @@ export const checkBudgetAlert = inngest.createFunction(
   async ({ step }) => {
     const budgets = await step.run("fetch-budgets", async () => {
       const rows = await adminDb.budget.findMany({
+        // Overall budgets only. Per-category budgets exist now, and alerting
+        // on them is a separate decision rather than something this job should
+        // start doing silently.
+        where: { category: null },
         include: {
           user: {
             include: {
@@ -128,7 +133,10 @@ export const checkBudgetAlert = inngest.createFunction(
           budget.lastAlertSent &&
           !isNewMonth(new Date(budget.lastAlertSent), now);
 
-        if (percentageUsed < 80 || alreadyAlerted) return null;
+        // NEAR_LIMIT_PERCENT, not a literal 80: the budgets page shows the
+        // same threshold, and the two must not drift apart or the email and
+        // the UI disagree about whether a budget is near its limit.
+        if (percentageUsed < NEAR_LIMIT_PERCENT || alreadyAlerted) return null;
 
         const { year, month } = zonedYearMonth(now);
 

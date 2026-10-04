@@ -87,7 +87,7 @@ export default function DemoDashboardPage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <div className="flex">
+            <div className="flex min-w-0">
               <RecentTransactions
                 transactions={transactions}
                 accounts={accounts}
@@ -95,7 +95,7 @@ export default function DemoDashboardPage() {
                 viewAllHref="/demo/transactions"
               />
             </div>
-            <div className="flex flex-col gap-6">
+            <div className="flex min-w-0 flex-col gap-6">
               <div className="shrink-0">
                 <BudgetProgress
                   initialBudget={budget.budget}

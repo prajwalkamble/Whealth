@@ -31,7 +31,8 @@ export async function getNotifications() {
       since.setDate(since.getDate() - RECURRING_WINDOW_DAYS);
 
       const [budget, defaultAccount, recentRecurring] = await Promise.all([
-        tx.budget.findUnique({ where: { userId } }),
+        // The overall budget, not a per-category one.
+        tx.budget.findFirst({ where: { userId, category: null } }),
         tx.account.findFirst({
           where: { userId, isDefault: true },
           select: { id: true, name: true },

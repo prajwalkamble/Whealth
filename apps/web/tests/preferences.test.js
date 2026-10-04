@@ -104,7 +104,7 @@ describe("every option is backed by a style rule", () => {
         const selector = `${prefix}[data-palette="${id}"] {`;
         const at = css.indexOf(selector);
         expect(at, selector).toBeGreaterThan(-1);
-        const block = css.slice(at, css.indexOf("}", at));
+        const block = at === -1 ? "" : css.slice(at, css.indexOf("}", at));
         // --primary alone barely shows: hovers and the sidebar's active item
         // read --accent, and badges read --secondary.
         for (const token of [
@@ -129,7 +129,7 @@ describe("every option is backed by a style rule", () => {
         const selector = `${prefix}[data-charts="${id}"] {`;
         const at = css.indexOf(selector);
         expect(at, selector).toBeGreaterThan(-1);
-        const block = css.slice(at, css.indexOf("}", at));
+        const block = at === -1 ? "" : css.slice(at, css.indexOf("}", at));
         for (let i = 1; i <= 5; i++) {
           expect(block).toContain(`--chart-${i}:`);
         }
@@ -178,8 +178,18 @@ describe("every option is backed by a style rule", () => {
   });
 
   const chartSeries = (scope) => {
-    const at = css.indexOf(scope + " {");
-    const block = css.slice(at, css.indexOf("}", at));
+    // The scope may head a grouped selector -- ":root" is written as
+    // ":root,\n  .theme-light {" so a subtree can be forced light inside a
+    // dark page. Anchor to a selector at the start of a line followed by "{"
+    // or ",", so the word ".dark" inside a comment is not mistaken for the
+    // block itself.
+    const selector = new RegExp(
+      "^\\s*" + scope.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*[,{]",
+      "m"
+    );
+    const found = selector.exec(css);
+    const at = found ? css.indexOf("{", found.index) : -1;
+    const block = at === -1 ? "" : css.slice(at, css.indexOf("}", at));
     return [...block.matchAll(/--chart-\d:\s*[\d.]+\s+([\d.]+)%\s+([\d.]+)%/g)].map(
       (m) => ({ saturation: Number(m[1]), lightness: Number(m[2]) })
     );
@@ -213,7 +223,7 @@ describe("every option is backed by a style rule", () => {
     "ramp $id keeps one hue across its five shades",
     ({ id }) => {
       const at = css.indexOf(`[data-charts="${id}"] {`);
-      const block = css.slice(at, css.indexOf("}", at));
+      const block = at === -1 ? "" : css.slice(at, css.indexOf("}", at));
       const hues = [...block.matchAll(/--chart-\d:\s*([\d.]+)\s/g)].map((m) => m[1]);
       expect(hues).toHaveLength(5);
       // A ramp, not a rainbow: shifting the hue per series turned "rose"

@@ -108,7 +108,109 @@ export const transactionInputSchema = z
     }
   });
 
+// 1-31, or nothing. A day of the month rather than a date: billing and due
+// days repeat, so storing a specific date would go stale after one cycle.
+const dayOfMonth = z
+  .union([z.literal(""), z.null(), z.undefined(), z.coerce.number()])
+  .transform((v) => (v === "" || v === null || v === undefined ? null : v))
+  .refine((v) => v === null || (Number.isInteger(v) && v >= 1 && v <= 31), "Day must be 1-31");
+
+// A budget is an amount plus the thing it limits. category null means the
+// overall monthly budget; otherwise it must be a category the app actually
+// knows about, so a limit cannot be set against a name nothing is filed under.
+export const EXPENSE_CATEGORY_IDS = defaultCategories
+  .filter((c) => c.type === "EXPENSE")
+  .map((c) => c.id);
+
+export const budgetEntrySchema = z.object({
+  amount: z.coerce.number().pipe(positiveAmount),
+  category: z
+    .union([z.literal(""), z.null(), z.undefined(), z.string()])
+    .transform((v) => (v ? v : null))
+    .refine(
+      (v) => v === null || EXPENSE_CATEGORY_IDS.includes(v),
+      "Choose a category from the list"
+    ),
+});
+
 export const budgetInputSchema = z.coerce.number().pipe(positiveAmount);
+
+// Cards.
+//
+// Everything a card record is allowed to hold. The list is a whitelist on
+// purpose: a card number, a CVV or a PIN has no field to land in, so a client
+// that sends one gets it stripped rather than stored.
+export const CARD_NETWORKS = ["VISA", "MASTERCARD", "RUPAY", "AMEX", "DINERS", "OTHER"];
+export const CARD_TYPES = ["CREDIT", "DEBIT"];
+
+const currentYear = () => new Date().getFullYear();
+
+export const cardInputSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name is required").max(60, "Name is too long"),
+    issuer: z.string().trim().min(1, "Issuer is required").max(60, "Issuer is too long"),
+    network: z.enum(CARD_NETWORKS, { message: "Choose a network" }),
+    type: z.enum(CARD_TYPES, { message: "Choose a card type" }),
+    // Four digits as text, so a card ending 0042 keeps its leading zeros.
+    last4: z
+      .string()
+      .trim()
+      .regex(/^[0-9]{4}$/, "Enter the last 4 digits"),
+    expiryMonth: z.coerce.number().int().min(1, "Month must be 1-12").max(12, "Month must be 1-12"),
+    expiryYear: z.coerce
+      .number()
+      .int()
+      .min(currentYear() - 20, "Year looks wrong")
+      .max(currentYear() + 20, "Year looks wrong"),
+    // Credit cards only. Empty string from an untouched input means "not set".
+    creditLimit: z
+      .union([z.literal(""), z.null(), z.undefined(), z.coerce.number()])
+      .transform((v) => (v === "" || v === null || v === undefined ? null : v))
+      .refine((v) => v === null || (v >= 0 && v <= AMOUNT_LIMIT), "Credit limit is out of range"),
+    billingDay: dayOfMonth,
+    dueDay: dayOfMonth,
+    accountId: z
+      .union([z.literal(""), z.null(), z.undefined(), z.string().uuid()])
+      .transform((v) => (v ? v : null)),
+  })
+  .superRefine((data, ctx) => {
+    // A debit card has no limit of its own, so storing one would be a number
+    // nothing could ever be measured against.
+    if (data.type === "DEBIT" && data.creditLimit !== null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Only credit cards have a credit limit",
+        path: ["creditLimit"],
+      });
+    }
+  });
+
+// Goals.
+export const GOAL_STATUSES = ["ACTIVE", "COMPLETED", "ARCHIVED"];
+
+export const goalInputSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(80, "Name is too long"),
+  description: z
+    .union([z.literal(""), z.null(), z.undefined(), z.string().trim().max(300, "Description is too long")])
+    .transform((v) => (v ? v : null)),
+  targetAmount: z.coerce.number().pipe(positiveAmount),
+  // Optional: not every objective has a deadline. A date that will not parse
+  // is rejected rather than quietly stored as Invalid Date.
+  targetDate: z
+    .union([z.literal(""), z.null(), z.undefined(), z.coerce.date()])
+    .transform((v) => (v === "" || v === null || v === undefined ? null : v))
+    .refine((v) => v === null || !Number.isNaN(v.getTime()), "Enter a valid date"),
+});
+
+export const goalContributionSchema = z.object({
+  amount: z.coerce.number().pipe(positiveAmount),
+  date: z.coerce
+    .date()
+    .refine((v) => !Number.isNaN(v.getTime()), "Enter a valid date"),
+  note: z
+    .union([z.literal(""), z.null(), z.undefined(), z.string().trim().max(120, "Note is too long")])
+    .transform((v) => (v ? v : null)),
+});
 
 // The kinds of feedback the widget offers. Rating is handled by
 // ratingInputSchema and actions/rating.js, since it is stored rather than

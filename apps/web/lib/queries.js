@@ -17,6 +17,14 @@ import {
   previousMonth,
   zonedYearMonth,
 } from "@/lib/time";
+import {
+  categoryBreakdown,
+  monthlyFlow,
+  monthWindow,
+  periodTotals,
+  windowBounds,
+} from "@/lib/analytics";
+import { budgetPace, budgetTotals, periodProgress } from "@/lib/budget-pace";
 import { withCurrentTenant } from "@/lib/prisma";
 
 // Prisma Decimal instances cannot cross the server/client boundary.
@@ -245,7 +253,10 @@ async function budgetFor(tx, userId, accountId) {
   const { startOfMonth, endOfMonth } = monthBounds();
 
   const [budget, expenses] = await Promise.all([
-    tx.budget.findUnique({ where: { userId } }),
+    // The overall monthly budget is the row with no category. findFirst
+    // rather than findUnique: userId stopped being unique when per-category
+    // budgets arrived.
+    tx.budget.findFirst({ where: { userId, category: null } }),
     accountId
       ? tx.transaction.aggregate({
           where: {
@@ -294,6 +305,301 @@ export async function getDashboardPageData() {
 // The same reads on their own, for pages and tests that need one of them.
 export async function getUserAccounts() {
   return withCurrentTenant(accountsFor);
+}
+
+// Cards, newest first, with the account each one settles from.
+//
+// creditLimit is a Decimal and crosses into a client component, so it is
+// converted here at the serialisation boundary like every other money column.
+async function cardsFor(tx, userId) {
+  const rows = await tx.card.findMany({
+    where: { userId },
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    include: { account: { select: { id: true, name: true } } },
+  });
+
+  return rows.map((card) => ({
+    ...card,
+    creditLimit: card.creditLimit == null ? null : card.creditLimit.toNumber(),
+  }));
+}
+
+export async function getUserCards() {
+  return withCurrentTenant(cardsFor);
+}
+
+// Cards and the accounts they can be linked to, in ONE transaction.
+//
+// The page needs both, and calling the two readers concurrently opened two
+// interactive transactions racing for pool connections on every load -- the
+// same pattern the dashboard comment below describes having fixed. One
+// transaction, two queries inside it.
+export async function getCardsPageData() {
+  return withCurrentTenant(async (tx, userId) => {
+    const [cards, accounts] = await Promise.all([
+      cardsFor(tx, userId),
+      tx.account.findMany({
+        where: { userId },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+    return { cards, accounts };
+  });
+}
+
+// Budgets with what was actually spent against each one, for a chosen month,
+// plus the same figure for the month before so each row can carry its change.
+//
+// Spending is derived from transactions every time rather than stored on the
+// budget row: a total kept alongside the limit is a second source of truth
+// that drifts the moment a transaction is edited or deleted.
+//
+// Two groupBys and two aggregates for the whole page rather than a query per
+// budget, so adding budgets does not add round trips.
+//
+// Note what the period selector does and does not do. A Budget row has no
+// period: it is one standing limit with no history. Choosing a past month
+// re-measures real spending for that month against the limit as it stands
+// today -- it does not recover what the limit was back then, because that is
+// not stored. The UI says so.
+async function budgetsFor(tx, userId, { year, month } = {}) {
+  const target =
+    year != null && month != null ? { year, month } : zonedYearMonth();
+  const prior = previousMonth(target);
+
+  const now = monthBoundsFor(target.year, target.month);
+  const before = monthBoundsFor(prior.year, prior.month);
+
+  const expenseIn = ({ startOfMonth, endOfMonth }) => ({
+    userId,
+    type: "EXPENSE",
+    date: { gte: startOfMonth, lte: endOfMonth },
+  });
+
+  const [budgets, nowByCategory, beforeByCategory, nowAll, beforeAll] =
+    await Promise.all([
+      tx.budget.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
+      tx.transaction.groupBy({
+        by: ["category"],
+        where: expenseIn(now),
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      tx.transaction.groupBy({
+        by: ["category"],
+        where: expenseIn(before),
+        _sum: { amount: true },
+      }),
+      tx.transaction.aggregate({
+        where: expenseIn(now),
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      tx.transaction.aggregate({
+        where: expenseIn(before),
+        _sum: { amount: true },
+      }),
+    ]);
+
+  const spendNow = new Map(
+    nowByCategory.map((r) => [
+      r.category,
+      { spent: r._sum.amount?.toNumber() ?? 0, count: r._count._all },
+    ])
+  );
+  const spendBefore = new Map(
+    beforeByCategory.map((r) => [r.category, r._sum.amount?.toNumber() ?? 0])
+  );
+
+  const progress = periodProgress(now);
+
+  const rows = budgets.map((budget) => {
+    const limit = budget.amount.toNumber();
+    const overall = budget.category === null;
+
+    const { spent, count } = overall
+      ? { spent: nowAll._sum.amount?.toNumber() ?? 0, count: nowAll._count._all }
+      : spendNow.get(budget.category) ?? { spent: 0, count: 0 };
+
+    const previousSpent = overall
+      ? beforeAll._sum.amount?.toNumber() ?? 0
+      : spendBefore.get(budget.category) ?? 0;
+
+    const pace = budgetPace({ amount: limit, spent, previousSpent, progress });
+
+    return {
+      id: budget.id,
+      category: budget.category,
+      amount: limit,
+      spent,
+      transactions: count,
+      previousSpent,
+      remaining: pace.remaining,
+      percentUsed: pace.percentUsed,
+      pace,
+    };
+  });
+
+  return {
+    budgets: rows,
+    progress,
+    period: {
+      year: target.year,
+      month: target.month,
+      label: monthName(target.year, target.month),
+      previousLabel: monthName(prior.year, prior.month),
+    },
+    totals: budgetTotals(rows),
+  };
+}
+
+export async function getBudgets(period) {
+  return withCurrentTenant((tx, userId) => budgetsFor(tx, userId, period));
+}
+
+// Goals with progress, derived from their contributions.
+//
+// One groupBy for every goal rather than a query per goal, so adding goals
+// does not add round trips. saved is the sum of real contribution rows; there
+// is no stored running total to drift.
+async function goalsFor(tx, userId) {
+  const [goals, sums] = await Promise.all([
+    tx.goal.findMany({
+      where: { userId },
+      orderBy: [{ status: "asc" }, { targetDate: "asc" }, { createdAt: "desc" }],
+    }),
+    tx.goalContribution.groupBy({
+      by: ["goalId"],
+      where: { userId },
+      _sum: { amount: true },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const progress = new Map(
+    sums.map((row) => [
+      row.goalId,
+      { saved: row._sum.amount?.toNumber() ?? 0, count: row._count._all },
+    ])
+  );
+
+  return goals.map((goal) => {
+    const target = goal.targetAmount.toNumber();
+    const { saved, count } = progress.get(goal.id) ?? { saved: 0, count: 0 };
+
+    return {
+      id: goal.id,
+      name: goal.name,
+      description: goal.description,
+      targetAmount: target,
+      targetDate: goal.targetDate ? goal.targetDate.toISOString() : null,
+      // Pacing is measured from when the goal was set, so the client needs it.
+      createdAt: goal.createdAt.toISOString(),
+      status: goal.status,
+      saved,
+      contributions: count,
+      remaining: Math.max(target - saved, 0),
+      // target is > 0 by database constraint, so this cannot divide by zero.
+      percentComplete: Math.min((saved / target) * 100, 100),
+    };
+  });
+}
+
+export async function getGoals() {
+  return withCurrentTenant(goalsFor);
+}
+
+// A goal's own contribution history, newest first.
+export async function getGoalContributions(goalId) {
+  return withCurrentTenant(async (tx, userId) => {
+    const rows = await tx.goalContribution.findMany({
+      // Scoped by userId as well as goalId: the id alone is guessable.
+      where: { goalId, userId },
+      orderBy: { date: "desc" },
+      take: 50,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      amount: row.amount.toNumber(),
+      date: row.date.toISOString(),
+      note: row.note,
+    }));
+  });
+}
+
+// Everything the Analytics page needs, in one transaction.
+//
+// Rows are fetched once for the whole window and aggregated in lib/analytics.js
+// rather than issuing a query per month or per category: the page compares two
+// periods and breaks both down, and doing that in SQL would be a dozen round
+// trips for data already in hand.
+//
+// `months` is clamped so a crafted value cannot ask for an unbounded range.
+// Filters are applied in the query, and withCurrentTenant scopes every read to
+// the caller, so an accountId belonging to someone else returns nothing.
+export async function getAnalytics({ months = 6, accountId = null, type = null } = {}) {
+  const span = Math.min(Math.max(Number(months) || 6, 2), 24);
+
+  return withCurrentTenant(async (tx, userId) => {
+    const window = monthWindow(span);
+    const { startOfMonth, endOfMonth } = windowBounds(window);
+
+    // The period analysed is the newest month in the window; the one before it
+    // is the comparison.
+    const currentMonth = window[window.length - 1];
+    const priorMonth = previousMonth(currentMonth);
+    const currentBounds = monthBoundsFor(currentMonth.year, currentMonth.month);
+    const priorBounds = monthBoundsFor(priorMonth.year, priorMonth.month);
+
+    const from =
+      priorBounds.startOfMonth < startOfMonth ? priorBounds.startOfMonth : startOfMonth;
+
+    const [rows, accounts] = await Promise.all([
+      tx.transaction.findMany({
+        where: {
+          userId,
+          date: { gte: from, lte: endOfMonth },
+          ...(accountId ? { accountId } : {}),
+          ...(type ? { type } : {}),
+        },
+        select: { type: true, amount: true, category: true, date: true, accountId: true },
+        orderBy: { date: "asc" },
+      }),
+      tx.account.findMany({ where: { userId }, select: { id: true, name: true } }),
+    ]);
+
+    // Decimal -> number once, at the boundary, before any arithmetic.
+    const transactions = rows.map((row) => ({
+      type: row.type,
+      amount: row.amount.toNumber(),
+      category: row.category,
+      date: row.date,
+      accountId: row.accountId,
+    }));
+
+    const inRange = (a, b) => transactions.filter((t) => t.date >= a && t.date <= b);
+    const current = inRange(currentBounds.startOfMonth, currentBounds.endOfMonth);
+    const prior = inRange(priorBounds.startOfMonth, priorBounds.endOfMonth);
+
+    return {
+      span,
+      accounts,
+      hasAnyTransactions: transactions.length > 0,
+      // Whether a comparison is possible at all, so the page can say "not
+      // enough data" instead of printing a change against nothing.
+      hasPriorData: prior.length > 0,
+      flow: monthlyFlow(window, transactions),
+      current: periodTotals(current),
+      previous: periodTotals(prior),
+      categories: categoryBreakdown(current, prior),
+      period: {
+        label: monthName(currentMonth.year, currentMonth.month),
+        year: currentMonth.year,
+        previousLabel: monthName(priorMonth.year, priorMonth.month),
+      },
+    };
+  });
 }
 
 export async function getDashboardSummary() {

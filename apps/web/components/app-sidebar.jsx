@@ -37,10 +37,10 @@ const NAV_ITEMS = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Transactions", url: "/transactions", icon: ArrowLeftRight },
   { title: "Accounts", url: "/accounts", icon: Wallet },
-  { title: "Cards", icon: CreditCard, soon: true },
-  { title: "Budgets", icon: PiggyBank, soon: true },
-  { title: "Goals", icon: Target, soon: true },
-  { title: "Analytics", icon: BarChart3, soon: true },
+  { title: "Cards", url: "/cards", icon: CreditCard },
+  { title: "Budgets", url: "/budgets", icon: PiggyBank },
+  { title: "Goals", url: "/goals", icon: Target },
+  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

@@ -291,7 +291,11 @@ const SidebarInset = React.forwardRef(({ className, ...props }, ref) => {
     <main
       ref={ref}
       className={cn(
-        "relative flex w-full flex-1 flex-col bg-background",
+        // min-w-0: a flex item defaults to min-width:auto, so the inset
+        // refuses to shrink below its content and overflows by exactly
+        // the sidebar width once the sidebar pins open at md. That put a
+        // 256px horizontal scroll on every app page between 768 and 1024.
+        "relative flex w-full min-w-0 flex-1 flex-col bg-background",
         "md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
         className
       )}

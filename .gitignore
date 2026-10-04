@@ -48,3 +48,5 @@ package-lock.json
 
 # Prisma client, generated on install (see database/prisma/schema.prisma)
 database/generated/
+# Playwright CLI output (may contain credentials)
+.playwright-cli/

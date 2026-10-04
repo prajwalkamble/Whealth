@@ -14,9 +14,16 @@ const DemoHeader = ({ onReset, addedCount = 0 }) => {
     <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur-md md:px-6">
       <SidebarTrigger className="-ml-1" />
 
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-        <Eye className="h-3.5 w-3.5" />
-        Demo mode
+      {/* Below sm the pill drops to its icon. At 320px the full row -- trigger,
+          pill, theme toggle, Create Account -- was 22px wider than the screen
+          and scrolled the page sideways. The label stays in the accessible
+          name, so nothing is lost to a screen reader. */}
+      <span
+        aria-label="Demo mode"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-amber-500/15 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 sm:px-2.5"
+      >
+        <Eye aria-hidden className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Demo mode</span>
       </span>
 
       <Separator orientation="vertical" className="hidden h-4 sm:block" />

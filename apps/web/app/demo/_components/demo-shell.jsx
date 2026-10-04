@@ -40,7 +40,7 @@ const DemoShell = ({ children }) => {
       <SidebarInset>
         <DemoHeader onReset={demo.reset} addedCount={demo.addedCount} />
 
-        <div className="app-content flex flex-1 flex-col gap-6 p-4 md:p-6">
+        <div className="app-content flex min-w-0 flex-1 flex-col gap-6 p-4 md:p-6">
           {children}
         </div>
       </SidebarInset>
