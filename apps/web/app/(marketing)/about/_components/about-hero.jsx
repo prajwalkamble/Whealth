@@ -3,9 +3,12 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 // Asymmetric rather than a centred SaaS hero: copy on the left, the real
-// product on the right. The image is a screenshot of the live demo, so it
-// cannot show functionality that does not exist, and the demo's own banner is
-// left visible — the figures are sample data and the picture says so.
+// product on the right.
+//
+// The screenshots are captured from the live demo rather than drawn, so they
+// show the application's own navigation and figures. They do have to be
+// recaptured when a section ships -- these two spent a while showing Cards,
+// Budgets, Goals and Analytics greyed out after all four were built.
 const AboutHero = () => (
   <header className="grid items-center gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-14">
     <div>
@@ -43,8 +46,8 @@ const AboutHero = () => (
         <Image
           src="/dashboard-preview.png"
           alt="The WHealthOS dashboard: sidebar navigation, total balance, income, expenses and savings rate, with income sources, cash flow and an expense breakdown."
-          width={1440}
-          height={734}
+          width={1280}
+          height={1195}
           priority
           className="h-auto w-full dark:hidden"
         />
@@ -52,16 +55,12 @@ const AboutHero = () => (
           src="/dashboard-preview-dark.png"
           alt=""
           aria-hidden
-          width={1440}
-          height={734}
+          width={1280}
+          height={1195}
           priority
           className="hidden h-auto w-full dark:block"
         />
       </div>
-      <figcaption className="mt-3 text-xs text-muted-foreground">
-        The WHealthOS dashboard, running on the public demo. Figures are sample
-        data.
-      </figcaption>
     </figure>
   </header>
 );

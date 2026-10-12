@@ -40,14 +40,19 @@ import { useDashboardDemoTimeline } from "./use-dashboard-demo-timeline";
 // React state for the length of a loop; there is no provider, no localStorage,
 // no server action and no mutation path.
 
+// The application's own navigation, in its own order. Every one of these is a
+// built section with a route behind it -- kept in step with NAV_ITEMS in
+// components/app-sidebar.jsx, which is what a visitor sees after signing in.
+// Showing a section greyed out here after it has shipped undersells the
+// product as surely as showing one that does not exist would oversell it.
 const NAV = [
   { label: "Dashboard", icon: LayoutDashboard, active: true },
   { label: "Transactions", icon: ArrowLeftRight },
   { label: "Accounts", icon: Wallet },
-  { label: "Cards", icon: CreditCard, muted: true },
-  { label: "Budgets", icon: PiggyBank, muted: true },
-  { label: "Goals", icon: Target, muted: true },
-  { label: "Analytics", icon: BarChart3, muted: true },
+  { label: "Cards", icon: CreditCard },
+  { label: "Budgets", icon: PiggyBank },
+  { label: "Goals", icon: Target },
+  { label: "Analytics", icon: BarChart3 },
   { label: "Settings", icon: Settings },
 ];
 
@@ -66,7 +71,10 @@ const Panel = ({ name, className, children }) => (
 );
 
 
-const DashboardProductDemo = () => {
+// className overrides the outer figure's sizing, so the same demo can sit full
+// width under the landing headline or inside the narrower column on About
+// without either page keeping its own copy of it.
+const DashboardProductDemo = ({ className }) => {
   const rootRef = useRef(null);
   const cursorRef = useRef(null);
 
@@ -97,7 +105,7 @@ const DashboardProductDemo = () => {
   });
 
   return (
-    <figure className="mx-auto mt-16 w-full max-w-6xl 2xl:max-w-7xl">
+    <figure className={cn("mx-auto w-full", className ?? "mt-16 max-w-6xl 2xl:max-w-7xl")}>
       <div
         ref={rootRef}
         // select-none plus pointer-events-none on the contents: the panel is a
@@ -130,8 +138,8 @@ const DashboardProductDemo = () => {
         aria-label="The WHealthOS dashboard, showing balance, income, expenses, savings rate, cash flow, expense breakdown, recent transactions and account balances."
       >
         <div className={cn("flex pointer-events-none", !mounted && "invisible")}>
-          {/* Sidebar: the real nav, including the sections that are not built
-              yet, shown muted exactly as the application shows them. */}
+          {/* Sidebar: the application's real navigation, with the same
+              sections a signed-in visitor gets. */}
           <div
             data-demo="sidebar"
             data-demo-panel=""
