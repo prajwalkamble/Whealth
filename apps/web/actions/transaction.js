@@ -9,6 +9,7 @@ import { enforceRateLimit } from "@/lib/arcjet";
 import { ActionError, runAction } from "@/lib/action-error";
 import { requireClerkUserId } from "@/lib/session";
 import { nextOccurrenceAfter } from "@/lib/recurring";
+import { balanceEffect } from "@/lib/money";
 import { defaultCategories } from "@/data/categories";
 import {
   transactionInputSchema,
@@ -20,9 +21,9 @@ import {
 // balance; the shared one converts only the columns a query actually selected.
 const serializeAmount = serializeDecimals;
 
-// The signed change a transaction applies to its account balance.
-const balanceEffect = (type, amount) =>
-  type === "EXPENSE" ? -Number(amount) : Number(amount);
+// balanceEffect -- the signed change a transaction applies to its account
+// balance -- lives in lib/money.js so the exporter and the importer apply the
+// same rule rather than each restating it.
 
 // The columns a client is allowed to set. Spreading the validated payload
 // straight into Prisma would still carry whatever zod chose to keep, so the

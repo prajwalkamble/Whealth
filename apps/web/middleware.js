@@ -11,6 +11,7 @@ const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
   "/account(.*)",
   "/accounts(.*)",
+  "/api/export(.*)",
   "/cards(.*)",
   "/transaction(.*)",
   "/transactions(.*)",

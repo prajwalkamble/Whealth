@@ -28,6 +28,7 @@ loadEnv({ path: ".env.test", quiet: true });
 const DATABASE_TESTS = [
   "tests/rls-isolation.test.js",
   "tests/actions-integration.test.js",
+  "tests/import-integration.test.js",
   "tests/webhook-integration.test.js",
 ];
 

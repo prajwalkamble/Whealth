@@ -13,6 +13,7 @@ import { defaultCategories } from "@/data/categories";
 import { formatCurrency } from "@/lib/format";
 import { change } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
+import { ExportButton } from "@/components/export-drawer";
 import FlowChart from "./flow-chart";
 import CategoryTable from "./category-table";
 
@@ -84,12 +85,20 @@ const AnalyticsWorkspace = ({ data, filters }) => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-        <p className="text-sm text-muted-foreground">
-          Understand how your income, spending and financial activity change
-          over time.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+          <p className="text-sm text-muted-foreground">
+            Understand how your income, spending and financial activity change
+            over time.
+          </p>
+        </div>
+        {/* Exports the transactions these figures are computed from, so a
+            number here can be checked against its own rows. */}
+        <ExportButton
+          accountId={filters.account || null}
+          scopeLabel="The transactions behind these figures"
+        />
       </div>
 
       {/* Controls first, because every figure below is a function of them. */}

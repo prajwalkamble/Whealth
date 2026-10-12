@@ -602,6 +602,66 @@ export async function getAnalytics({ months = 6, accountId = null, type = null }
   });
 }
 
+// Transactions for an export, within a resolved date range and the filters the
+// Transactions page actually has.
+//
+// Scoped by withCurrentTenant like every other read, so an accountId belonging
+// to someone else returns nothing rather than someone else's money. The
+// account name is joined here so the export does not have to carry ids.
+//
+// `take` is a ceiling, not a page: an export silently truncated to a page size
+// would be a wrong financial record. The caller is told when it is hit.
+export async function getTransactionsForExport({ from, to, accountId = null, type = null, category = null, limit = 10000 }) {
+  return withCurrentTenant(async (tx, userId) => {
+    const where = {
+      userId,
+      date: { gte: from, lte: to },
+      ...(accountId ? { accountId } : {}),
+      ...(type ? { type } : {}),
+      ...(category ? { category } : {}),
+    };
+
+    const [total, rows] = await Promise.all([
+      tx.transaction.count({ where }),
+      tx.transaction.findMany({
+        where,
+        orderBy: { date: "asc" },
+        take: limit,
+        select: {
+          id: true,
+          date: true,
+          description: true,
+          type: true,
+          category: true,
+          amount: true,
+          status: true,
+          isRecurring: true,
+          createdAt: true,
+          account: { select: { name: true } },
+        },
+      }),
+    ]);
+
+    return {
+      total,
+      truncated: total > rows.length,
+      rows: rows.map((row) => ({
+        id: row.id,
+        date: row.date,
+        description: row.description,
+        type: row.type,
+        category: row.category,
+        // Decimal -> number once, at the boundary.
+        amount: row.amount.toNumber(),
+        status: row.status,
+        isRecurring: row.isRecurring,
+        createdAt: row.createdAt,
+        accountName: row.account?.name ?? "",
+      })),
+    };
+  });
+}
+
 export async function getDashboardSummary() {
   return withCurrentTenant(summaryFor);
 }

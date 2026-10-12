@@ -4,6 +4,7 @@ import { BarLoader, HashLoader } from 'react-spinners';
 import { TransactionTable } from '../_components/transaction-table';
 import { notFound } from 'next/navigation';
 import { AccountChart } from '../_components/account-chart';
+import { ExportButton } from "@/components/export-drawer";
 
 export default async function AccountsPage({ params }) {
   const { id } = await params;
@@ -28,7 +29,7 @@ export default async function AccountsPage({ params }) {
             </p>
           </div>
 
-          <div className="text-right pb-2">
+          <div className="flex flex-col items-end gap-2 pb-2 text-right">
             <div className="text-xl sm:text-2xl font-bold">
               &#8377;{parseFloat(account.balance).toFixed(2)}
             </div>
@@ -40,6 +41,11 @@ export default async function AccountsPage({ params }) {
                 The table shows the most recent {account.transactionLimit}
               </p>
             )}
+            {/* Scoped to this account, so the file matches the page. */}
+            <ExportButton
+              accountId={account.id}
+              scopeLabel={`${account.name} transactions`}
+            />
           </div>
         </div>
 

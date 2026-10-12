@@ -75,6 +75,17 @@ NEXT_DIST_DIR=.next-build pnpm build
   raw body, since re-serialising JSON changes the bytes and breaks the
   signature.
 
+- **pdfkit inserts a page when text lands below the bottom margin.** Drawing
+  a footer at `height - margin + 16` silently adds pages -- a 3-row report came
+  out 3 pages long. `lib/export/pdf.js` zeroes `doc.page.margins.bottom` on
+  every page and enforces the bottom itself.
+- **pdfkit's standard fonts have no `₹`.** It measures zero width in Helvetica,
+  so it prints nothing *and* corrupts any layout that measures text. The PDF
+  says "INR" instead; the XLSX uses a cell format, where the glyph is fine.
+- **`pdfkit` and `exceljs` are in `serverExternalPackages`.** pdfkit reads its
+  `.afm` metrics from its own package directory at runtime; bundling it breaks
+  that lookup.
+
 - **`@/` maps to `apps/web/*`**, via `apps/web/jsconfig.json` and the matching
   alias in `apps/web/vitest.config.mjs`. Both resolve relative to their own
   location.

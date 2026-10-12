@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { getUserTransactions } from "@/actions/transaction";
+import { getUserAccounts } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
+import { ExportButton } from "@/components/export-drawer";
+import { ImportButton } from "@/components/import-drawer";
 import { TransactionTable } from "../account/_components/transaction-table";
 
 export default async function TransactionsPage() {
-  const result = await getUserTransactions();
+  const [result, accounts] = await Promise.all([
+    getUserTransactions(),
+    getUserAccounts(),
+  ]);
   const failed = !result.success;
   const transactions = failed ? [] : result.data;
   const total = failed ? 0 : result.total;
@@ -37,14 +43,20 @@ export default async function TransactionsPage() {
             {summary}
           </p>
         </div>
-        {/* Same button as the dashboard header, so adding a transaction is
-            reachable from the section that lists them. */}
-        <Button size="sm" className="h-9" asChild>
-          <Link href="/transaction/create">
-            <Plus className="h-4 w-4" />
-            Add Transaction
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Import and export sit next to the list they act on, which is
+              where someone looks for them. */}
+          <ImportButton accounts={accounts} />
+          <ExportButton />
+          {/* Same button as the dashboard header, so adding a transaction is
+              reachable from the section that lists them. */}
+          <Button size="sm" className="h-9" asChild>
+            <Link href="/transaction/create">
+              <Plus className="h-4 w-4" />
+              Add Transaction
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* showAccount: this list spans accounts, so each row names its own. */}

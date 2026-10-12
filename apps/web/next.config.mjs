@@ -15,6 +15,12 @@ const nextConfig = {
     ],
   },
 
+  // pdfkit reads its standard-font metrics (.afm) from its own package
+  // directory at runtime, and exceljs ships prebuilt CommonJS. Bundling
+  // either into the server output breaks those file lookups, so both stay
+  // external and are required from node_modules.
+  serverExternalPackages: ["pdfkit", "exceljs"],
+
   eslint: {
     // `next lint` cannot read a flat eslint.config.mjs in Next 15 -- it fails
     // with "Cannot serialize key \"parse\" in \"parser\"" and is removed in
