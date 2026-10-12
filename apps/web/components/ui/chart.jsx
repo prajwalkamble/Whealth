@@ -22,66 +22,59 @@ function useChart() {
   return context
 }
 
-const ChartContainer = React.forwardRef(({ id, className, children, config, ...props }, ref) => {
-  const uniqueId = React.useId()
-  const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
-
-  return (
-    <ChartContext.Provider value={{ config }}>
-      <div
-        data-chart={chartId}
-        ref={ref}
-        className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
-          className
-        )}
-        {...props}
-      >
-        <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
-          {children}
-        </RechartsPrimitive.ResponsiveContainer>
-      </div>
-    </ChartContext.Provider>
-  )
-})
-ChartContainer.displayName = "Chart"
-
-const ChartStyle = ({
-  id,
-  config
-}) => {
-  const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme || config.color
-  )
-
-  if (!colorConfig.length) {
-    return null
+// The colour variables a chart's config contributes, as inline custom
+// properties.
+//
+// These used to be injected as a <style> block keyed by a data-chart attribute
+// whose value came from React.useId(). That id is derived from the component's
+// position in the tree, and on the landing page the server and the client
+// arrived at different positions for the same chart -- so the attribute and
+// the stylesheet inside it differed between the two renders and React reported
+// a hydration mismatch on every load of "/".
+//
+// Custom properties inherit, so setting them on the container reaches every
+// Recharts descendant exactly as the stylesheet did, with nothing generated to
+// disagree about. It also drops a <style> element per chart from the document.
+const chartColorVars = (config) => {
+  const vars = {};
+  for (const [key, item] of Object.entries(config ?? {})) {
+    // A per-theme colour would need a real stylesheet, since an inline style
+    // cannot carry two values. Nothing in this app uses one -- every config
+    // gives a single colour, already theme-aware through hsl(var(--chart-N)),
+    // which is the pattern to follow. Saying so loudly beats rendering the
+    // light colour in dark mode and leaving someone to find it by eye.
+    if (item?.theme && process.env.NODE_ENV !== "production") {
+      console.error(
+        `Chart config "${key}" uses theme: {light, dark}, which this component no longer supports. ` +
+          "Use a single color referencing a CSS variable, e.g. hsl(var(--chart-1))."
+      );
+    }
+    const color = item?.color ?? item?.theme?.light;
+    if (color) vars[`--color-${key}`] = color;
   }
+  return vars;
+};
 
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: Object.entries(THEMES)
-          .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
-  .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme] ||
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
-  })
-  .join("\n")}
-}
-`
-          )
-          .join("\n"),
-      }}
-    />
-  );
-}
+const ChartContainer = React.forwardRef(({ id, className, children, config, style, ...props }, ref) => (
+  <ChartContext.Provider value={{ config }}>
+    <div
+      id={id}
+      ref={ref}
+      className={cn(
+        "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
+        className
+      )}
+      // Caller styles last, so a chart can still override a colour.
+      style={{ ...chartColorVars(config), ...style }}
+      {...props}
+    >
+      <RechartsPrimitive.ResponsiveContainer>
+        {children}
+      </RechartsPrimitive.ResponsiveContainer>
+    </div>
+  </ChartContext.Provider>
+))
+ChartContainer.displayName = "Chart"
 
 const ChartTooltip = RechartsPrimitive.Tooltip
 
@@ -325,5 +318,4 @@ export {
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
-  ChartStyle,
 }

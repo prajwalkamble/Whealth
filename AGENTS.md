@@ -75,6 +75,14 @@ NEXT_DIST_DIR=.next-build pnpm build
   raw body, since re-serialising JSON changes the bytes and breaks the
   signature.
 
+- **Never put a `useId()` value into rendered markup.** The id encodes the
+  component's position in the tree, and on `/` the server and the client
+  arrived at different positions for the same chart — so shadcn's
+  `data-chart={useId()}` plus its generated `<style>` mismatched on every
+  load. `components/ui/chart.jsx` now sets `--color-*` inline on the
+  container instead; custom properties inherit, so Recharts children see them
+  exactly as before and there is nothing generated to disagree about.
+
 - **pdfkit inserts a page when text lands below the bottom margin.** Drawing
   a footer at `height - margin + 16` silently adds pages -- a 3-row report came
   out 3 pages long. `lib/export/pdf.js` zeroes `doc.page.margins.bottom` on
