@@ -242,4 +242,38 @@ describe("Background job access path", () => {
     );
     expect(rows.map((r) => r.id)).toEqual([txnA]);
   });
+
+  // The detector in lib/prisma.js, exercised against both roles this suite
+  // already has a connection for. It matters that it is tested rather than
+  // merely written: its whole job is to notice a misconfiguration nothing
+  // else notices, so a detector that quietly always returns "fine" would be
+  // worse than none at all.
+  describe("the guard that notices when RLS has been defeated", () => {
+    const probe = async (pool) => {
+      const { rows } = await pool.query(`
+        SELECT current_user::text AS role,
+               pg_catalog.pg_has_role(current_user, 'whealth_jobs', 'member') AS in_jobs,
+               (SELECT rolbypassrls FROM pg_catalog.pg_roles
+                 WHERE rolname = current_user) AS bypasses
+      `);
+      const row = rows[0];
+      return {
+        role: row.role,
+        defeated: Boolean(row.bypasses) || Boolean(row.in_jobs),
+      };
+    };
+
+    it("clears the application role", async () => {
+      const result = await probe(app);
+      expect(result.defeated, `${result.role} should be subject to RLS`).toBe(false);
+    });
+
+    it("catches a role that bypasses the policies", async () => {
+      // The owner is exactly the shape production was found in: privileged
+      // enough that every policy steps aside. If the query cannot tell the
+      // difference between this and the application role, it is useless.
+      const result = await probe(owner);
+      expect(result.defeated, `${result.role} should be flagged`).toBe(true);
+    });
+  });
 });

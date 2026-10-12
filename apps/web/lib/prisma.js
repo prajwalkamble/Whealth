@@ -42,11 +42,77 @@ if (process.env.NODE_ENV !== "production") {
   globalThis.prismaAdmin = adminDb;
 }
 
+// Does the request path's role actually obey the policies?
+//
+// Every RLS policy in this repository is correct, enabled and forced -- and
+// all of it is worth nothing if DATABASE_URL happens to name a role that
+// bypasses it. Two things defeat the lot, silently and with no failing test:
+// a role with rolbypassrls (the `postgres` superuser on a managed instance
+// has it), and membership of whealth_jobs, which the policies name as an
+// escape hatch for the cron. Either one turns withTenant() into a decorative
+// SELECT and leaves application-layer scoping as the only thing standing
+// between two users' records.
+//
+// Nothing in the app can detect that by behaving differently, because the
+// queries all still work. So it is asked directly, once per process, and the
+// answer goes to the log.
+//
+// Deliberately not fatal. Refusing to boot over this would take the whole
+// service down for a misconfiguration that is survivable -- the application
+// layer does scope every query -- and the person who needs to know is reading
+// logs, not a stack trace from a dead container. It is written at error level
+// and says what to change.
+let rlsChecked = false;
+
+export async function checkAppRoleObeysRls(client = db) {
+  const [row] = await client.$queryRaw`
+    SELECT current_user::text                                  AS role,
+           pg_catalog.pg_has_role(current_user, 'whealth_jobs', 'member') AS in_jobs,
+           (SELECT rolbypassrls FROM pg_catalog.pg_roles
+             WHERE rolname = current_user)                     AS bypasses
+  `;
+
+  const defeated = Boolean(row?.bypasses) || Boolean(row?.in_jobs);
+  return { role: row?.role ?? "unknown", bypasses: Boolean(row?.bypasses), inJobs: Boolean(row?.in_jobs), defeated };
+}
+
+export async function warnIfRlsIsDefeated() {
+  if (rlsChecked) return;
+  rlsChecked = true;
+
+  try {
+    const result = await checkAppRoleObeysRls();
+    if (!result.defeated) return;
+
+    const why = [
+      result.bypasses && "it has BYPASSRLS",
+      result.inJobs && "it is a member of whealth_jobs, which every policy exempts",
+    ]
+      .filter(Boolean)
+      .join(", and ");
+
+    console.error(
+      `ROW-LEVEL SECURITY IS NOT IN EFFECT. DATABASE_URL connects as "${result.role}" and ${why}. ` +
+        "Every isolation policy on every table is being skipped for ordinary requests. " +
+        "Point DATABASE_URL at the whealth_app role from database/prisma/rls-bootstrap.sql; " +
+        "DIRECT_URL keeps the privileged role for migrations and jobs."
+    );
+  } catch (error) {
+    // A failure here must never be the reason a request fails.
+    console.warn("Could not check whether the database role obeys RLS.", error);
+  }
+}
+
 // Runs fn inside a transaction with the tenant context set, so RLS scopes every
 // query to this user. The setting is transaction-local (the `true` argument to
 // set_config), so it cannot leak to the next borrower of a pooled connection.
 export async function withTenant(userId, fn) {
   if (!userId) throw new ActionError("Unauthorized");
+
+  // Not awaited: the check is a log line, not a precondition, and a request
+  // should not wait on it. Runs once per process, on the first query that
+  // RLS was supposed to protect.
+  void warnIfRlsIsDefeated();
 
   return db.$transaction(
     async (tx) => {
