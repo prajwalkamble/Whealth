@@ -43,6 +43,12 @@ model User {
   // fonts, scale, radius, colour schema, layout, sidebar). One column rather
   // than ten, since they are only ever read and written together.
   preferences  Json?
+  // Whether the monthly summary email may include AI commentary. Writing the
+  // commentary is the only thing that sends this person's figures to an
+  // external model, so turning it off is what stops that -- the report itself
+  // still goes out, with the same real totals and no commentary section.
+  // Defaults to true, which is what every existing account already had.
+  monthlyInsights Boolean    @default(true)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

@@ -471,7 +471,7 @@ export const sendMonthlyReport = inngest.createFunction(
     const user = await step.run("fetch-user", () =>
       adminDb.user.findUnique({
         where: { id: userId },
-        select: { name: true, email: true },
+        select: { name: true, email: true, monthlyInsights: true },
       })
     );
     if (!user) return { skipped: "user no longer exists" };
@@ -488,6 +488,11 @@ export const sendMonthlyReport = inngest.createFunction(
     }
 
     const insights = await step.run("ai-insights", async () => {
+      // Turned off in Settings: no model call, and the report goes out with
+      // the figures alone. The flag comes from the memoised fetch-user step,
+      // so a retry takes the same branch a fresh query might not.
+      if (!user.monthlyInsights) return null;
+
       try {
         return await generateFinancialInsights(stats, monthName);
       } catch (error) {
@@ -531,7 +536,10 @@ export const sendMonthlyReport = inngest.createFunction(
       }
     });
 
-    return { userId, insights: insights ? "ai" : "none" };
+    return {
+      userId,
+      insights: insights ? "ai" : user.monthlyInsights ? "failed" : "off",
+    };
   }
 );
 

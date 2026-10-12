@@ -74,10 +74,18 @@ export default function EmailTemplate({
               </Section>
             )}
 
-            {/* AI Insights */}
+            {/* AI Insights. The note is not decoration: these three lines
+                are written by an external model from the totals above, and
+                nobody at WHealthOS reads them before this email is sent.
+                Printing them under a WHealthOS heading with nothing saying
+                so passed them off as ours. */}
             {data?.insights && (
               <Section style={styles.section}>
-                <Heading style={styles.heading}>WHealthOS Insights</Heading>
+                <Heading style={styles.heading}>Insights</Heading>
+                <Text style={styles.disclosure}>
+                  Written by an AI model from the figures above. Nobody has
+                  checked it, and it can be wrong about what a number means.
+                </Text>
                 {data.insights.map((insight, index) => (
                   <Text key={index} style={styles.text}>
                     • {insight}
@@ -165,6 +173,14 @@ const styles = {
     color: "#4b5563",
     fontSize: "16px",
     margin: "0 0 16px",
+  },
+  // Quieter than the body copy, and sitting above it rather than in a
+  // footnote, so it is read before the commentary rather than after.
+  disclosure: {
+    color: "#6b7280",
+    fontSize: "13px",
+    lineHeight: "18px",
+    margin: "-8px 0 16px",
   },
   statsContainer: {
     margin: "32px 0",

@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { currentUser } from "@clerk/nextjs/server";
+import AiSummaryToggle from "./_components/ai-summary-toggle";
 import AppearanceCard from "./_components/appearance-card";
 import { ExportButton } from "@/components/export-drawer";
 import { ImportButton } from "@/components/import-drawer";
-import { getUserAccounts } from "@/lib/queries";
+import { AI_USAGE_LINK } from "@/lib/legal/ai";
+import { getMonthlyInsightsEnabled, getUserAccounts } from "@/lib/queries";
 import {
   Card,
   CardContent,
@@ -12,9 +15,10 @@ import {
 } from "@/components/ui/card";
 
 export default async function SettingsPage() {
-  const [user, accounts] = await Promise.all([
+  const [user, accounts, monthlyInsights] = await Promise.all([
     currentUser(),
     getUserAccounts(),
+    getMonthlyInsightsEnabled(),
   ]);
   const email = user?.primaryEmailAddress?.emailAddress ?? null;
   const name =
@@ -59,6 +63,29 @@ export default async function SettingsPage() {
               skipped. Export as CSV, Excel or PDF for any period; the PDF is a
               report of your own records, not a certified or audited statement.
             </p>
+          </section>
+
+          <section className="space-y-1 border-t pt-4" aria-labelledby="privacy-heading">
+            <h3 id="privacy-heading" className="text-sm font-medium">
+              Privacy
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Imported files are read to create your transactions and are not
+              stored. Two features do send information to an external AI
+              provider: the receipt scanner sends the photo you choose, and
+              the monthly summary email sends that month&apos;s totals by
+              category. The{" "}
+              <Link
+                href={AI_USAGE_LINK}
+                className="underline underline-offset-4"
+              >
+                AI Usage page
+              </Link>{" "}
+              sets out exactly what each one sends and what it does not.
+            </p>
+            <div className="pt-3">
+              <AiSummaryToggle enabled={monthlyInsights} />
+            </div>
           </section>
         </CardContent>
       </Card>

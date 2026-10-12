@@ -307,6 +307,19 @@ export async function getUserAccounts() {
   return withCurrentTenant(accountsFor);
 }
 
+// Whether this account's monthly summary may include AI commentary. Its own
+// query rather than part of a larger one: the Settings page is the only place
+// that reads it, and it must reflect a change the moment it is saved.
+export async function getMonthlyInsightsEnabled() {
+  return withCurrentTenant(async (tx, userId) => {
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { monthlyInsights: true },
+    });
+    return user?.monthlyInsights ?? true;
+  });
+}
+
 // Cards, newest first, with the account each one settles from.
 //
 // creditLimit is a Decimal and crosses into a client component, so it is
