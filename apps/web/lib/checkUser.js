@@ -1,5 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { adminDb } from "./prisma";
+import { ActionError } from "./action-error";
+import { LEGAL_VERSIONS } from "./legal/versions";
 
 // How long a synced profile is trusted before Clerk is asked again. The layout
 // runs this on every navigation, and it used to call Clerk's API every time.
@@ -17,10 +19,15 @@ const PROFILE_REFRESH_MS = 24 * 60 * 60 * 1000;
 // per navigation: it is one join, not another round trip.
 const WITH_RATING = { rating: { select: { score: true } } };
 
-export const checkUser = async () => {
-  const { userId: clerkUserId } = await auth();
-  if (!clerkUserId) return null;
-
+// Reading the Clerk session and resolving it to a WHealthOS row is split from
+// creating one, because creating one is no longer something a page may do on
+// its own: a WHealthOS account comes into existence only when the person has
+// accepted the Terms and the Privacy Policy, which is provisionUser() below.
+//
+// Returns { user } once there is a row, and { user: null, profile } when the
+// Clerk session is valid but no WHealthOS account exists yet -- carrying the
+// profile that provisioning will need, so it is not fetched from Clerk twice.
+async function resolve(clerkUserId) {
   const existing = await adminDb.user.findUnique({
     where: { clerkUserId },
     include: WITH_RATING,
@@ -29,11 +36,14 @@ export const checkUser = async () => {
     existing &&
     Date.now() - existing.updatedAt.getTime() < PROFILE_REFRESH_MS
   ) {
-    return existing;
+    return { user: existing };
   }
 
   const user = await currentUser();
-  if (!user) return existing;
+  // Clerk is unreachable or the session has gone. Keep the row we have rather
+  // than reporting the account as missing, which would send an existing user
+  // round the consent step they already completed.
+  if (!user) return { user: existing };
 
   const primaryEmail =
     user.primaryEmailAddress ?? user.emailAddresses?.[0] ?? null;
@@ -50,13 +60,16 @@ export const checkUser = async () => {
     imageUrl: user.imageUrl ?? "",
   };
 
-  if (existing) return syncProfile(existing.id, profile);
+  if (existing) return { user: await syncProfile(existing.id, profile) };
 
   // A new Clerk id with an email we already hold: the person deleted their
   // Clerk account and signed up again. The unique email used to make the
   // create fail on every request, locking them out for good. Re-link their
   // data -- but only on a verified address, or anyone could claim another
   // person's data by signing up with their email.
+  //
+  // This is an existing WHealthOS account, so it is resolved here rather than
+  // in provisioning, and the person is not asked to accept anything again.
   if (email) {
     const byEmail = await adminDb.user.findUnique({ where: { email } });
     if (byEmail) {
@@ -65,21 +78,76 @@ export const checkUser = async () => {
           "This email address is already registered. Verify it to continue."
         );
       }
-      return adminDb.user.update({
-        where: { id: byEmail.id },
-        data: { clerkUserId, ...profile },
-        include: WITH_RATING,
-      });
+      return {
+        user: await adminDb.user.update({
+          where: { id: byEmail.id },
+          data: { clerkUserId, ...profile },
+          include: WITH_RATING,
+        }),
+      };
     }
   }
 
+  return { user: null, profile };
+}
+
+// The WHealthOS row for the signed-in person, or null if they have a Clerk
+// session but no WHealthOS account yet -- which is what the (main) layout
+// turns into a redirect to the consent step.
+export const checkUser = async () => {
+  const { userId: clerkUserId } = await auth();
+  if (!clerkUserId) return null;
+
+  const { user } = await resolve(clerkUserId);
+  return user;
+};
+
+// Creates the WHealthOS account, recording the acceptance that allowed it.
+//
+// The only path that creates a user row. The account and the consent record
+// are written in one transaction, so neither can exist without the other:
+// there is no account whose owner never agreed to anything, and no consent
+// record pointing at an account that was never created.
+//
+// Everything written here is decided by the server. The caller passes nothing:
+// the identity comes from the verified Clerk session, the versions from
+// LEGAL_VERSIONS, and the timestamp from the database.
+export async function provisionUser() {
+  const { userId: clerkUserId } = await auth();
+  if (!clerkUserId) throw new ActionError("Unauthorized");
+
+  const { user, profile } = await resolve(clerkUserId);
+  // Already provisioned -- a refresh, a second tab, or a retried request.
+  // Returned as a success rather than an error: the account exists, which is
+  // what the caller wanted, and nothing further should be written.
+  if (user) return user;
+
+  if (!profile) {
+    throw new ActionError(
+      "Could not read your profile from Clerk. Please try again."
+    );
+  }
+
+  const consent = {
+    termsVersion: LEGAL_VERSIONS.TERMS,
+    privacyVersion: LEGAL_VERSIONS.PRIVACY,
+  };
+
   try {
-    return await adminDb.user.create({
-      data: { clerkUserId, ...profile },
-      include: WITH_RATING,
+    return await adminDb.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          clerkUserId,
+          ...profile,
+          legalConsents: { create: consent },
+        },
+        include: WITH_RATING,
+      });
+      return created;
     });
   } catch (error) {
-    // Two first requests raced; the other one created the row.
+    // Two requests raced; the other one created the row, with its own consent
+    // record. Return that one rather than failing a signup that succeeded.
     if (error.code === "P2002") {
       const created = await adminDb.user.findUnique({
         where: { clerkUserId },
@@ -89,7 +157,7 @@ export const checkUser = async () => {
     }
     throw error;
   }
-};
+}
 
 // Copies the current Clerk profile onto the row. Always writes, so updatedAt
 // moves and the next day's requests skip Clerk again.

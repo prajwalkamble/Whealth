@@ -37,6 +37,9 @@ model User {
   goals        Goal[]
   contributions GoalContribution[]
   rating       Rating?
+  // Every legal document acceptance this person has given. See
+  // apps/web/lib/legal/versions.js for what the version strings mean.
+  legalConsents LegalConsent[]
   // Light / dark / system, chosen in the app and kept on the account so the
   // choice follows the user to another browser or device.
   // Appearance settings from lib/preferences.js (theme colour, chart colours,
@@ -266,6 +269,42 @@ model Rating {
   updatedAt DateTime @updatedAt
 
   @@map("ratings")
+}
+
+// A record that a person accepted a specific version of the Terms of Service
+// and the Privacy Policy, at a specific moment.
+//
+// This is an audit record, not application state: nothing in the product reads
+// it to decide what a user may do. It exists so the question "which documents
+// did this person agree to, and when" has one answer that was written by the
+// server at the moment they said yes.
+//
+// Every column is set server-side. The browser contributes exactly one bit --
+// that the box was checked -- and never a version, a timestamp or a user id.
+//
+// The unique constraint is what makes a retry safe: a refresh, a double click
+// or a retried request after a timeout re-inserts the same three values and
+// loses, rather than writing a second row that would make the history look
+// like two separate acceptances. It is on the pair of versions rather than on
+// userId alone so that a future re-consent to a newer document can be added
+// beside this one instead of overwriting it.
+//
+// No createdAt: there is one write path and the row is created at the moment
+// of acceptance, so a separate row-creation timestamp would always hold the
+// same value as acceptedAt.
+model LegalConsent {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The version strings from LEGAL_VERSIONS, copied in rather than referenced,
+  // so the record still says what was accepted after the constant moves on.
+  termsVersion   String
+  privacyVersion String
+  acceptedAt     DateTime @default(now())
+
+  @@unique([userId, termsVersion, privacyVersion], map: "legal_consents_user_versions_key")
+  @@index([userId])
+  @@map("legal_consents")
 }
 
 // One row per 5-minute slot in which the uptime heartbeat succeeded. A slot

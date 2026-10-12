@@ -7,7 +7,6 @@ import WhatIs from "./_components/what-is";
 import MissionVision from "./_components/mission-vision";
 import CoreValues from "./_components/core-values";
 import Philosophy from "./_components/philosophy";
-import Intelligence from "./_components/intelligence";
 import Enterprise from "./_components/enterprise";
 import Trust from "./_components/trust";
 import Promise from "./_components/promise";
@@ -55,7 +54,6 @@ export default async function AboutPage() {
       <MissionVision />
       <CoreValues />
       <Philosophy />
-      <Intelligence />
       <Enterprise />
       <Trust />
       <Promise />

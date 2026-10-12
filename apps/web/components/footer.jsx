@@ -3,6 +3,9 @@ import Link from "next/link";
 import { Github, Linkedin, Youtube } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FOOTER_TOOL_SLUGS, toolBySlug, toolPath } from "@/lib/tools/registry";
+import { AI_USAGE_LINK } from "@/lib/legal/ai";
+import { COOKIE_POLICY_LINK } from "@/lib/legal/cookies";
+import { SECURITY_LINK } from "@/lib/legal/security";
 
 // The four featured tools, read from the registry so a label here can never
 // drift from the page it points at. Between them they cover the four questions
@@ -71,11 +74,11 @@ const COLUMNS = [
   {
     title: "Legal",
     links: [
-      { label: "Privacy Policy" },
-      { label: "Terms of Service" },
-      { label: "Security" },
-      { label: "Cookie Policy" },
-      { label: "AI Usage" },
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Terms of Service", href: "/terms" },
+      { label: "Security", href: SECURITY_LINK },
+      { label: "Cookie Policy", href: COOKIE_POLICY_LINK },
+      { label: "AI Usage", href: AI_USAGE_LINK },
     ],
   },
 ];
@@ -99,9 +102,9 @@ function XIcon(props) {
 }
 
 const BOTTOM_LINKS = [
-  { label: "Privacy" },
-  { label: "Terms" },
-  { label: "Security" },
+  { label: "Privacy", href: "/privacy" },
+  { label: "Terms", href: "/terms" },
+  { label: "Security", href: SECURITY_LINK },
   { label: "Status" },
 ];
 

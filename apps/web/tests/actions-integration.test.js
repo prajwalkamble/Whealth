@@ -86,7 +86,7 @@ const { monthBounds, zonedYearMonth } = await import("@/lib/time");
 const { recordUptime, processRecurringTransaction } = await import(
   "@/lib/inngest/functions"
 );
-const { checkUser } = await import("@/lib/checkUser");
+const { checkUser, provisionUser } = await import("@/lib/checkUser");
 const { db: appDb, withTenant } = await import("@/lib/prisma");
 
 // Fixtures are created with an admin connection that bypasses RLS.
@@ -911,6 +911,10 @@ describe("Category validation", () => {
 });
 
 describe("User provisioning (checkUser)", () => {
+  // checkUser() resolves a Clerk session to a WHealthOS row; it deliberately
+  // does not create one. Creating the account is provisionUser(), which only
+  // the consent step calls -- so a row cannot come into existence without the
+  // acceptance recorded beside it. See tests/consent-integration.test.js.
   const EXTRA = ["clerk_it_erin", "clerk_it_erin2", "clerk_it_erin3", "clerk_it_frank"];
   const cleanup = () =>
     admin.user.deleteMany({
@@ -937,11 +941,19 @@ describe("User provisioning (checkUser)", () => {
   beforeAll(cleanup);
   afterAll(cleanup);
 
-  it("creates the row on first sign-in", async () => {
+  it("reports no account for a Clerk session that has not been provisioned", async () => {
     currentClerkId = "clerk_it_erin";
     currentClerkProfile = profile("clerk_it_erin");
-    const user = await checkUser();
+    expect(await checkUser()).toBeNull();
+    expect(await admin.user.findUnique({ where: { clerkUserId: "clerk_it_erin" } })).toBeNull();
+  });
+
+  it("creates the row when provisioning runs", async () => {
+    currentClerkId = "clerk_it_erin";
+    currentClerkProfile = profile("clerk_it_erin");
+    const user = await provisionUser();
     expect(user).toMatchObject({ clerkUserId: "clerk_it_erin", email: "it-erin@example.test", name: "Erin" });
+    expect(await checkUser()).toMatchObject({ id: user.id });
   });
 
   it("does not call Clerk again while the profile is fresh", async () => {
@@ -979,10 +991,10 @@ describe("User provisioning (checkUser)", () => {
     expect(await admin.user.findUnique({ where: { clerkUserId: "clerk_it_erin3" } })).toBeNull();
   });
 
-  it("lets someone without an email address sign in", async () => {
+  it("lets someone without an email address sign up", async () => {
     currentClerkId = "clerk_it_frank";
     currentClerkProfile = profile("clerk_it_frank", { email: null, firstName: "Frank" });
-    const user = await checkUser();
+    const user = await provisionUser();
     expect(user).toMatchObject({ clerkUserId: "clerk_it_frank", email: null, name: "Frank" });
   });
 });

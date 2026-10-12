@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Clerk from "@/components/clerk";
+import { redirect } from "next/navigation";
 import { checkUser } from "@/lib/checkUser";
 import FeedbackWidget from "@/components/feedback-widget";
 import PreferencesSync from "@/components/preferences-sync";
@@ -13,6 +14,20 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 // public landing page off the database entirely.
 const MainLayout = async ({ children }) => {
   const user = await checkUser();
+
+  // Signed in (the middleware saw to that) but no WHealthOS account yet, which
+  // means the consent step has not been completed. The account is created
+  // there, so until it is there is nothing here to show and no row for a
+  // tenant-scoped query to resolve to.
+  //
+  // This is the chokepoint for every page under (main), and it is the real
+  // enforcement: not a disabled button, and not something the browser can
+  // route around, since the row it is checking for is the row the rest of the
+  // app needs in order to read or write anything at all.
+  //
+  // Existing accounts never reach it. A row that already exists is simply
+  // returned, so nobody is asked to accept anything twice.
+  if (!user) redirect("/welcome");
   // Comes back on the row checkUser already fetches. Reading it separately
   // meant a whole extra tenant transaction on every navigation, for a panel
   // most people never open -- and a transient failure there would have taken

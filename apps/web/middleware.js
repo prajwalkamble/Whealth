@@ -15,6 +15,9 @@ const isProtectedRoute = createRouteMatcher([
   "/cards(.*)",
   "/transaction(.*)",
   "/transactions(.*)",
+  // The consent step. Protected like the rest: it acts on the signed-in
+  // session, and it is where the WHealthOS account is created.
+  "/welcome(.*)",
   "/budgets(.*)",
   "/goals(.*)",
   "/analytics(.*)",
