@@ -396,13 +396,22 @@ describe("Transaction actions", () => {
     rateLimitDenied = false;
   });
 
+  // A Decimal instance cannot cross into a client component, so nothing this
+  // action returns may still be one. The joined account is deliberately
+  // narrowed to id and name -- the table shows the account's name and nothing
+  // else -- so asserting a balance here was asserting a column the query does
+  // not select. The contract is: every value returned is serialisable, and no
+  // unselected money column leaks in.
   it("serializes amounts as numbers across the client boundary", async () => {
     asTenant("alice");
     const res = await getUserTransactions();
     expect(res.success).toBe(true);
+    expect(res.data.length).toBeGreaterThan(0);
     for (const t of res.data) {
       expect(typeof t.amount).toBe("number");
-      expect(typeof t.account.balance).toBe("number");
+      expect(Object.keys(t.account).sort()).toEqual(["id", "name"]);
+      // Nothing left that JSON could not carry.
+      expect(() => JSON.stringify(t)).not.toThrow();
     }
   });
 });
