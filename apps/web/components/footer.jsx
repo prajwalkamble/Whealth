@@ -2,6 +2,20 @@ import Image from "next/image";
 import Link from "next/link";
 import { Github, Linkedin, Youtube } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FOOTER_TOOL_SLUGS, toolBySlug, toolPath } from "@/lib/tools/registry";
+
+// The four featured tools, read from the registry so a label here can never
+// drift from the page it points at. Between them they cover the four questions
+// people actually arrive with: how long will my money last, can I reach my
+// goal, how do I clear what I owe, and where do I stand.
+const TOOL_LINKS = [
+  ...FOOTER_TOOL_SLUGS.map((slug) => {
+    const tool = toolBySlug(slug);
+    return { label: tool.short, href: toolPath(slug) };
+  }),
+  // Always last.
+  { label: "All Tools", href: "/tools" },
+];
 
 // The marketing footer.
 //
@@ -36,20 +50,24 @@ const COLUMNS = [
       { label: "Status" },
     ],
   },
-  // Commented out until there is a registered company behind it. Uncomment to
-  // bring the column back; the grid below counts the columns, so nothing else
-  // needs changing.
-  // {
-  //   title: "Company",
-  //   links: [
-  //     { label: "About" },
-  //     { label: "Contact" },
-  //     { label: "Careers" },
-  //     { label: "Open Source" },
-  //     { label: "Contributors" },
-  //     { label: "Blog" },
-  //   ],
-  // },
+  {
+    title: "Company",
+    links: [
+      // Only About has a page. The rest stay href-less and render as plain
+      // text until they do -- a link to a route that does not exist is worse
+      // than no link, and inventing one would be the easiest thing here to get
+      // wrong.
+      { label: "About", href: "/about" },
+      { label: "Contact" },
+      { label: "Careers" },
+      { label: "Open Source" },
+      { label: "Blog" },
+    ],
+  },
+  {
+    title: "Tools",
+    links: TOOL_LINKS,
+  },
   {
     title: "Legal",
     links: [
