@@ -1,7 +1,7 @@
 "use server";
 
 import { currentUser } from "@clerk/nextjs/server";
-import { sendEmail } from "@/actions/send-email";
+import { sendEmail } from "@/lib/email/send";
 import FeedbackEmail from "@/emails/feedback";
 import { ActionError, runAction } from "@/lib/action-error";
 import { enforceRateLimit } from "@/lib/arcjet";
@@ -45,9 +45,14 @@ export async function submitFeedback(rawData) {
     const label = FEEDBACK_TYPES[type];
 
     const result = await sendEmail({
+      type: "feedback",
       to: INBOX,
       subject: `[WHealthOS] ${label} from ${from}`,
       react: FeedbackEmail({ label, message, from, replyTo }),
+      // Set as a real header, not only printed in the body: replying to a
+      // feedback email should reach the person who wrote it. The address comes
+      // from the verified session above, never from the submitted payload.
+      ...(replyTo ? { replyTo } : {}),
     });
 
     if (!result.success) {

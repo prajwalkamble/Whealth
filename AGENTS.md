@@ -66,6 +66,15 @@ NEXT_DIST_DIR=.next-build pnpm build
   first.
 - **An animation on `transform` replaces a `rotate-*` class.** Put both in the
   keyframes.
+- **The Resend webhook must stay out of the Arcjet middleware.** `detectBot`
+  runs LIVE in production on every API route and does not allow Resend, so a
+  matched webhook path has its deliveries blocked. `middleware.js` excludes
+  `/api/webhooks/`; the endpoint verifies each request's Svix signature itself.
+- **`svix`'s `verify()` returns nothing.** It signals failure by throwing, so
+  the route parses the raw body itself *after* verifying — and must verify the
+  raw body, since re-serialising JSON changes the bytes and breaks the
+  signature.
+
 - **`@/` maps to `apps/web/*`**, via `apps/web/jsconfig.json` and the matching
   alias in `apps/web/vitest.config.mjs`. Both resolve relative to their own
   location.

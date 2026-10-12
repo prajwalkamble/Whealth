@@ -269,3 +269,53 @@ model UptimeCheck {
 
   @@map("uptime_checks")
 }
+
+// Email received at a WHealthOS address, via the Resend inbound webhook.
+//
+// Not tenant data: it arrives from anyone, to a support address, and the From
+// header of an email is trivially forged -- so it is deliberately NOT linked
+// to a User. Treating a claimed sender as an identity would let anyone address
+// a message "as" a WHealthOS user. Row-level security therefore restricts this
+// table to the job runner rather than to a tenant.
+//
+// The HTML body is deliberately not stored. Only the plain-text part is kept:
+// nothing then exists that could be rendered into a page later by mistake, and
+// an inbox of raw HTML from strangers is a liability with no current use.
+model InboundEmail {
+  id String @id @default(uuid())
+
+  // The webhook delivery's own identifier, used for idempotency. Resend retries
+  // a delivery it did not get a 2xx for, so the same email can arrive several
+  // times; unique means the second insert loses rather than duplicating.
+  eventId String @unique
+
+  // The email's own Message-ID header, where it has one. Useful for threading
+  // and for recognising the same message delivered through another route.
+  messageId String?
+
+  fromAddress String
+  toAddress   String
+  subject     String?
+  // Plain text only, truncated before storage.
+  text        String?
+  // Metadata only: attachments are counted, never downloaded or stored.
+  attachments Int    @default(0)
+
+  status      InboundEmailStatus @default(RECEIVED)
+  forwardedAt DateTime?
+  // Why forwarding failed, when it did. Never the message body.
+  error       String?
+
+  receivedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([receivedAt(sort: Desc)])
+  @@index([status])
+  @@map("inbound_emails")
+}
+
+enum InboundEmailStatus {
+  RECEIVED
+  FORWARDED
+  FAILED
+}

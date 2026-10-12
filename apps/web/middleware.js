@@ -50,7 +50,12 @@ export const config = {
   matcher: [
     // Skip Next.js internals and all static files, unless found in search params
     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    // Always run for API routes -- except the Resend webhook. detectBot runs
+    // LIVE in production and does not allow Resend, so leaving it matched
+    // would have Arcjet block every webhook delivery. That endpoint has no
+    // session to protect and verifies each request's Svix signature itself,
+    // which is a stronger gate than bot detection.
+    '/api/((?!webhooks/).*)',
+    '/trpc(.*)',
   ],
 };

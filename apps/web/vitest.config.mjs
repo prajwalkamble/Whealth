@@ -12,13 +12,23 @@ import { fileURLToPath } from "node:url";
 //     DATABASE_URL=postgresql://whealth_app:...@127.0.0.1:5432/whealth_test
 //     DIRECT_URL=postgresql://owner:...@127.0.0.1:5432/whealth_test
 //
-// Apply the migrations to it first (prisma migrate deploy with the same two
-// variables) and run prisma/rls-bootstrap.sql once.
+// A disposable local one is enough, and docker is the quickest route:
+//
+//   docker run -d --name whealth-test-db -e POSTGRES_PASSWORD=testpw \
+//     -e POSTGRES_DB=whealth_test -p 55432:5432 postgres:17-alpine
+//   DATABASE_URL=postgresql://postgres:testpw@127.0.0.1:55432/whealth_test \
+//     DIRECT_URL=$DATABASE_URL \
+//     pnpm --filter @whealthos/database exec prisma migrate deploy
+//   psql "$DIRECT_URL" -v app_password=testapppw \
+//     -f database/prisma/rls-bootstrap.sql
+//
+// Then point DATABASE_URL at the whealth_app role and DIRECT_URL at the owner.
 loadEnv({ path: ".env.test", quiet: true });
 
 const DATABASE_TESTS = [
   "tests/rls-isolation.test.js",
   "tests/actions-integration.test.js",
+  "tests/webhook-integration.test.js",
 ];
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);

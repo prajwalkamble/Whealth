@@ -1,5 +1,5 @@
 import { NEAR_LIMIT_PERCENT } from "@/lib/budget-pace";
-import { sendEmail } from "@/actions/send-email";
+import { sendEmail } from "@/lib/email/send";
 import { adminDb, withTenant } from "../prisma";
 import { inngest } from "./client";
 import EmailTemplate from "@/emails/template";
@@ -221,6 +221,7 @@ export const sendBudgetAlert = inngest.createFunction(
 
     await step.run("send-email", async () => {
       const result = await sendEmail({
+        type: "budget-alert",
         to: recipient.email,
         subject: `Budget Alert for ${alert.accountName} account`,
         react: EmailTemplate({
@@ -510,6 +511,7 @@ export const sendMonthlyReport = inngest.createFunction(
 
     await step.run("send-email", async () => {
       const result = await sendEmail({
+        type: "monthly-report",
         to: user.email,
         subject: `Your monthly Financial Report for ${monthName}`,
         react: EmailTemplate({

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 // The inngest module pulls in Prisma and Resend at import time; neither is
 // needed to exercise the scheduling predicate.
-vi.mock("@/actions/send-email", () => ({ sendEmail: async () => ({ success: true }) }));
+vi.mock("@/lib/email/send", () => ({ sendEmail: async () => ({ success: true }) }));
 
 const { isTransactionDue } = await import("@/lib/inngest/functions");
 
