@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { useAuth } from "@clerk/nextjs";
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { Button } from "./ui/button";
 import {
@@ -21,10 +20,14 @@ const OPTIONS = [
   { value: "system", label: "System", icon: Monitor },
 ];
 
-const ThemeToggle = () => {
+// persist: whether to save the choice against the account as well as applying
+// it locally. It arrives as a prop rather than from useAuth(), because this
+// toggle sits in the public header and useAuth() requires a ClerkProvider --
+// which is exactly what the public pages no longer mount. The theme still
+// changes for a logged-out visitor; there is simply no account to write to.
+const ThemeToggle = ({ persist = false }) => {
   const { theme, setTheme } = useTheme();
   const { setPreference } = usePreferences();
-  const { isSignedIn } = useAuth();
   // theme is only known in the browser, so the checkmark waits for mount
   // rather than rendering something the server did not.
   const [mounted, setMounted] = useState(false);
@@ -37,7 +40,7 @@ const ThemeToggle = () => {
     // Saved against the account so the choice follows the user to another
     // browser or device. It is a preference, not something to interrupt them
     // over: the theme has already changed locally either way.
-    if (isSignedIn && next) {
+    if (persist && next) {
       savePreferences(next).catch((error) =>
         console.error("Could not save the theme preference:", error)
       );

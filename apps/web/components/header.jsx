@@ -1,4 +1,4 @@
-import { SignedIn, SignedOut } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
 import UserAvatar from "./user-avatar";
 import Image from "next/image";
 import Link from "next/link";
@@ -8,9 +8,12 @@ import ThemeToggle from "./theme-toggle";
 import HeaderMobileNav from "./header-mobile-nav";
 import HeaderNav, { NAV } from "./header-nav";
 
-// Deliberately a server component. Clerk's <SignedIn>/<SignedOut> resolve here
-// from the verified session, so the right-hand side is in the first HTML
-// rather than appearing a moment after hydration. The collapsible menu is the
+// Deliberately a server component, and now deliberately free of Clerk's
+// client components. It reads the session with auth(), which runs on the
+// server off the verified cookie, so the right-hand side is in the first HTML
+// rather than appearing a moment after hydration -- and, unlike <SignedIn> /
+// <SignedOut>, it needs no ClerkProvider and therefore loads no Clerk
+// JavaScript for a visitor who is not signed in. The collapsible menu is the
 // only part that needs state, and it lives in its own client component.
 //
 // No appearance customizer here: it tunes the signed-in dashboard, so it
@@ -22,7 +25,10 @@ import HeaderNav, { NAV } from "./header-nav";
 // round trip for logged-out visitors. The sync lives in the (main) layout,
 // which only wraps the authenticated routes that actually need the row.
 
-const Header = () => {
+const Header = async () => {
+  const { userId } = await auth();
+  const signedIn = Boolean(userId);
+
   return (
     <div className="fixed top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
       <nav className="relative flex w-full items-center gap-6 px-4 py-3 md:px-6 lg:px-8">
@@ -54,37 +60,37 @@ const Header = () => {
         <HeaderNav className="absolute left-1/2 hidden -translate-x-1/2 lg:flex" />
 
         <div className="ml-auto flex items-center gap-2">
-          <ThemeToggle />
+          <ThemeToggle persist={signedIn} />
 
-          <SignedOut>
-            {/* asChild: each button renders as its link. A <button> nested
-                inside an <a> is invalid HTML. */}
-            <Button variant="outline" asChild className="hidden sm:inline-flex">
-              <Link href="/demo">Explore WHealthOS</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/sign-in">Log in</Link>
-            </Button>
-          </SignedOut>
-
-          <SignedIn>
-            <Button variant="outline" asChild>
-              <Link href="/dashboard">
-                <LayoutDashboard size={18} />
-                <span className="hidden md:inline">Dashboard</span>
-              </Link>
-            </Button>
-            <UserAvatar size="h-9 w-9" />
-          </SignedIn>
-
-          {/* showDemoLink: the desktop button is hidden below sm, so the menu
-              carries it at those widths. */}
-          <SignedOut>
-            <HeaderMobileNav nav={NAV} showDemoLink />
-          </SignedOut>
-          <SignedIn>
-            <HeaderMobileNav nav={NAV} />
-          </SignedIn>
+          {signedIn ? (
+            <>
+              <Button variant="outline" asChild>
+                <Link href="/dashboard">
+                  <LayoutDashboard size={18} />
+                  <span className="hidden md:inline">Dashboard</span>
+                </Link>
+              </Button>
+              {/* The one Clerk component left on a public page, and it only
+                  renders for someone who is signed in -- which is also the
+                  only case where the marketing layout mounts ClerkProvider. */}
+              <UserAvatar size="h-9 w-9" />
+              <HeaderMobileNav nav={NAV} />
+            </>
+          ) : (
+            <>
+              {/* asChild: each button renders as its link. A <button> nested
+                  inside an <a> is invalid HTML. */}
+              <Button variant="outline" asChild className="hidden sm:inline-flex">
+                <Link href="/demo">Explore WHealthOS</Link>
+              </Button>
+              <Button asChild>
+                <Link href="/sign-in">Log in</Link>
+              </Button>
+              {/* showDemoLink: the desktop button is hidden below sm, so the
+                  menu carries it at those widths. */}
+              <HeaderMobileNav nav={NAV} showDemoLink />
+            </>
+          )}
         </div>
       </nav>
     </div>

@@ -29,7 +29,8 @@ const AppHeader = () => {
 
       <div className="ml-auto flex items-center gap-1">
         <NotificationBell />
-        <ThemeToggle />
+        {/* Everything under (main) is signed in. */}
+        <ThemeToggle persist />
         <ThemeCustomizer />
 
         <Separator orientation="vertical" className="mx-1 h-6" />

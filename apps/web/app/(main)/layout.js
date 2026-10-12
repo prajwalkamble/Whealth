@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Clerk from "@/components/clerk";
 import { checkUser } from "@/lib/checkUser";
 import FeedbackWidget from "@/components/feedback-widget";
 import PreferencesSync from "@/components/preferences-sync";
@@ -24,6 +25,9 @@ const MainLayout = async ({ children }) => {
   const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
+    // Always wrapped: everything under (main) is signed in, and the shell is
+    // full of Clerk components -- the avatar menu, the profile screen.
+    <Clerk>
     <SidebarProvider defaultOpen={defaultOpen}>
       {/* Applies the theme saved on the account, for a browser that has not
           seen this user before. */}
@@ -45,6 +49,7 @@ const MainLayout = async ({ children }) => {
           one page. */}
       <FeedbackWidget initialRating={rating} />
     </SidebarProvider>
+    </Clerk>
   );
 };
 

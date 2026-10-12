@@ -61,6 +61,8 @@ const DemoHeader = ({ onReset, addedCount = 0 }) => {
           <Search className="h-5 w-5" />
         </Button>
 
+        {/* No persist: the demo is public and mounts no ClerkProvider, so
+            there is no account here to save a theme against. */}
         <ThemeToggle />
 
         <Separator orientation="vertical" className="mx-1 h-4" />

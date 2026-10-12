@@ -13,7 +13,6 @@ import {
   Roboto,
 } from "next/font/google";
 import "./globals.css";
-import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PreferencesProvider } from "@/components/preferences-provider";
@@ -87,9 +86,16 @@ export const metadata = {
 
 // Providers only. The header and footer belong to (marketing); the signed-in
 // app has its own shell in (main).
+//
+// No ClerkProvider here. It used to wrap everything, which meant the landing
+// page, the calculators and the legal pages all loaded Clerk's JavaScript,
+// set its cookies and wrote to its localStorage for visitors with nothing to
+// sign in to. It now lives in the layouts that actually need it: (auth) and
+// (main) always, and (marketing) only for someone already signed in. The
+// demo mounts none at all.
 export default function RootLayout({ children }) {
   return (
-    <ClerkProvider>
+    <>
       {/* suppressHydrationWarning: next-themes sets the theme class on <html>
           before React hydrates, which the server cannot predict. */}
       {/* The font variables belong on <html>: --font-body and --font-display
@@ -114,6 +120,6 @@ export default function RootLayout({ children }) {
           </ThemeProvider>
         </body>
       </html>
-    </ClerkProvider>
+    </>
   );
 }
