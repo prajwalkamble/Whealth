@@ -19,7 +19,12 @@ pnpm db:migrate · pnpm db:generate · pnpm db:studio
 ```
 
 **Stop the dev server before `pnpm build`.** Building while it runs corrupts
-`.next` and produces confusing failures afterwards.
+`.next` and produces confusing failures afterwards. To verify a change without
+stopping a dev server someone is using, build to a different directory:
+
+```sh
+NEXT_DIST_DIR=.next-build pnpm build
+```
 
 ## Rules that are not negotiable
 

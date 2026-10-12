@@ -1,5 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // A build and `next dev` cannot share .next -- building over a running dev
+  // server corrupts it, and the failures afterwards point anywhere but here.
+  // Setting NEXT_DIST_DIR lets a verification build run beside a dev server
+  // someone is using: `NEXT_DIST_DIR=.next-build pnpm build`.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+
   images: {
     remotePatterns: [
       {

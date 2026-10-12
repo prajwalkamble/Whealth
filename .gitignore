@@ -50,3 +50,4 @@ package-lock.json
 database/generated/
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+.next-build
