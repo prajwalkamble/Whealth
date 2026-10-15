@@ -232,12 +232,28 @@ describe("every option is backed by a style rule", () => {
     }
   );
 
-  it("keeps the dark surface off near-black", () => {
+  // The dark page was deliberately lifted off near-black at 11%. The owner
+  // asked for charcoal black instead, so the floor moved: 7%, the same
+  // surface Material and most dark UIs settle on, and not pure black -- a 0%
+  // page makes every border and shadow disappear. What still has to hold is
+  // the step between the page and the surfaces on it, which is what keeps a
+  // card reading as raised.
+  it("keeps the dark page charcoal, with its surfaces a step above", () => {
     const dark = css.match(/\.dark\s*\{([^}]*)\}/)[1];
-    const lightness = Number(
-      dark.match(/--background:\s*[\d.]+\s+[\d.]+%\s+([\d.]+)%/)[1]
-    );
-    expect(lightness).toBeGreaterThan(8);
+    const lightnessOf = (token) =>
+      Number(
+        dark.match(new RegExp(`--${token}:\\s*[\\d.]+\\s+[\\d.]+%\\s+([\\d.]+)%`))[1]
+      );
+
+    const page = lightnessOf("background");
+    expect(page).toBeGreaterThanOrEqual(5);
+    expect(page).toBeLessThanOrEqual(9);
+
+    for (const surface of ["card", "popover", "sidebar-background", "muted", "border"]) {
+      expect(lightnessOf(surface), surface).toBeGreaterThan(page);
+    }
+    // Raised, not floating: a card sits a couple of points above the page.
+    expect(lightnessOf("card") - page).toBeGreaterThanOrEqual(2);
   });
 });
 

@@ -72,12 +72,18 @@ describe("All five documents are public and reachable", () => {
       const direct = footer.split(`"${href}"`).length - 1;
       const viaConstant =
         footer.split(
-          { security: "SECURITY_LINK", cookies: "COOKIE_POLICY_LINK", ai: "AI_USAGE_LINK" }[
-            name
-          ] ?? "\u0000"
+          {
+            terms: "LEGAL_LINKS.terms",
+            privacy: "LEGAL_LINKS.privacy",
+            security: "SECURITY_LINK",
+            cookies: "COOKIE_POLICY_LINK",
+            ai: "AI_USAGE_LINK",
+          }[name] ?? "\u0000"
         ).length - 1;
-      // Security appears twice on purpose: the Legal column and the bottom
-      // bar. Everything else is once. Either way it must appear.
+      // Privacy, Terms and Security appear twice on purpose: the Legal
+      // group and the bottom bar. Everything else is once. Either way it
+      // must appear, and the footer reads every one of them from its own
+      // module rather than typing the route again.
       expect(direct + viaConstant, `${name} is not in the footer`).toBeGreaterThan(0);
     }
   });

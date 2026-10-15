@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// The marketing nav, centred in the bar.
+// The marketing nav. Where it sits in the bar is the caller's business --
+// header.jsx centres it from xl up and lets it flow below that.
 //
 // Its own client component so the header itself can stay on the server, where
 // Clerk's <SignedIn>/<SignedOut> resolve from the verified session. Nothing
@@ -13,6 +14,10 @@ import { cn } from "@/lib/utils";
 
 // Items without an href have no page behind them yet, so they render as plain
 // text rather than as links that go nowhere.
+//
+// No About or Contact. They are the footer's Company group now, by
+// instruction, and the bar carries what someone is deciding between rather
+// than what they read once.
 export const NAV = [
   {
     label: "Product",
@@ -72,7 +77,6 @@ export const NAV = [
       { label: "Changelog", description: "What shipped recently" },
     ],
   },
-  { label: "About", href: "/about" },
 ];
 
 // A short grace period on leaving, so moving the pointer diagonally from the

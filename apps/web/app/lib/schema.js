@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ActionError } from "@/lib/action-error";
 import { defaultCategories } from "@/data/categories";
+import { CONTACT_TOPICS } from "@/lib/company/contact";
 
 // --- Form schemas -----------------------------------------------------------
 // These describe what the *browser form* holds, where number inputs are still
@@ -242,6 +243,90 @@ export const feedbackInputSchema = z.object({
       `Please use at least ${FEEDBACK_WORD_MINIMUM} words`
     ),
 });
+
+// The public enquiry form on /contact.
+//
+// Stricter than the in-app widget, because this one has no session behind it:
+// anyone on the internet can post to it, so every field is bounded, the email
+// address is normalised, and the subject is stripped of anything that could
+// break out of the header it ends up in.
+//
+// z.object() drops keys it does not know about, so an extra field posted by a
+// crafted request never reaches the action.
+
+// Subject lines are written into an email header. A carriage return or line
+// feed in one ends the header and begins another, which is how a subject field
+// becomes a way to add recipients to somebody else's mail. Control characters
+// go, and runs of whitespace collapse, before the value is ever used.
+const headerSafe = (value) =>
+  String(value ?? "")
+    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+export const CONTACT_SUBJECT_MAX = 120;
+export const CONTACT_NAME_MAX = 80;
+export const CONTACT_MESSAGE_MAX = 4000;
+export const CONTACT_EMAIL_MAX = 254;
+
+export const contactInputSchema = z.object({
+  topic: z.enum(CONTACT_TOPICS.map((topic) => topic.id), {
+    errorMap: () => ({ message: "Choose what your message is about" }),
+  }),
+
+  name: z
+    .string()
+    .trim()
+    .min(2, "Please give a name we can address a reply to")
+    .max(CONTACT_NAME_MAX, "That name is too long"),
+
+  // Normalised before it is used: trimmed, and lower-cased so the same address
+  // typed two ways is one address. 254 is the practical maximum length of an
+  // address, so anything longer is not one.
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1, "An email address is needed so we can reply")
+    .max(CONTACT_EMAIL_MAX, "That email address is too long")
+    .email("That does not look like an email address"),
+
+  subject: z
+    .string()
+    .transform(headerSafe)
+    .pipe(
+      z
+        .string()
+        .min(3, "Please summarise your message in a few words")
+        .max(CONTACT_SUBJECT_MAX, "That subject is too long")
+    ),
+
+  message: z
+    .string()
+    .trim()
+    .max(CONTACT_MESSAGE_MAX, `That is too long; please keep it under ${CONTACT_MESSAGE_MAX} characters`)
+    .refine(
+      (value) => countWords(value) >= FEEDBACK_WORD_MINIMUM,
+      `Please use at least ${FEEDBACK_WORD_MINIMUM} words`
+    ),
+
+  // A field no person sees and no person fills in. A bot that fills every
+  // input it finds fills this one too, and the action refuses the submission
+  // without telling it which field gave it away.
+  website: z
+    .union([z.literal(""), z.null(), z.undefined(), z.string()])
+    .transform((value) => (value ? String(value) : "")),
+});
+
+// The field a validation failure belongs to, so the form can mark the control
+// rather than only printing a sentence above it.
+export function firstFieldError(error) {
+  const issue = error?.issues?.[0];
+  return {
+    field: typeof issue?.path?.[0] === "string" ? issue.path[0] : null,
+    message: issue?.message ?? "Please check the form and try again",
+  };
+}
 
 export const ratingInputSchema = z.coerce
   .number({ invalid_type_error: "Rating must be a number" })

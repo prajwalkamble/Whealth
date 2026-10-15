@@ -49,26 +49,29 @@
   }
   .dark {
     color-scheme: dark;
-    /* Lifted off near-black: the page sits at 11% rather than 3.9%, with
-       cards a shade above it so they still read as raised. */
-    --background: 225 8% 11%;
+    /* Charcoal black. The page sits at 7% with each surface a measured step
+       above it -- cards and popovers at 10%, the sidebar between the two --
+       so raised things still read as raised on a near-black page. Saturation
+       is 5-6% at the brand's own hue rather than 0%, which keeps the greys
+       cool instead of flat without tinting anything blue. */
+    --background: 220 6% 7%;
     --foreground: 220 14% 96%;
-    --card: 225 8% 14%;
+    --card: 220 6% 10%;
     --card-foreground: 220 14% 96%;
-    --popover: 225 8% 14%;
+    --popover: 220 6% 10%;
     --popover-foreground: 220 14% 96%;
     --primary: 220 14% 96%;
-    --primary-foreground: 225 9% 13%;
-    --secondary: 225 7% 20%;
+    --primary-foreground: 220 6% 9%;
+    --secondary: 220 5% 16%;
     --secondary-foreground: 220 14% 96%;
-    --muted: 225 7% 18%;
+    --muted: 220 5% 14%;
     --muted-foreground: 220 9% 70%;
-    --accent: 225 7% 22%;
+    --accent: 220 5% 18%;
     --accent-foreground: 220 14% 96%;
     --destructive: 0 62.8% 42%;
     --destructive-foreground: 0 0% 98%;
-    --border: 225 7% 24%;
-    --input: 225 7% 24%;
+    --border: 220 5% 20%;
+    --input: 220 5% 20%;
     --ring: 220 9% 72%;
     /* The default greys, mirrored: pale first, so the strongest series is
        still the most visible one on the dark surface. */
@@ -77,13 +80,13 @@
     --chart-3: 0 0% 60%;
     --chart-4: 0 0% 44%;
     --chart-5: 0 0% 32%;
-    --sidebar-background: 225 8% 13%;
+    --sidebar-background: 220 6% 9%;
     --sidebar-foreground: 220 14% 94%;
     --sidebar-primary: 220 14% 96%;
-    --sidebar-primary-foreground: 225 9% 13%;
-    --sidebar-accent: 225 7% 20%;
+    --sidebar-primary-foreground: 220 6% 9%;
+    --sidebar-accent: 220 5% 16%;
     --sidebar-accent-foreground: 220 14% 96%;
-    --sidebar-border: 225 7% 22%;
+    --sidebar-border: 220 5% 18%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }

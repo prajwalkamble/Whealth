@@ -55,9 +55,19 @@ const Header = async () => {
           />
         </Link>
 
-        {/* Absolutely centred, so the nav sits in the middle of the bar
-            rather than wherever the logo and the buttons happen to leave it. */}
-        <HeaderNav className="absolute left-1/2 hidden -translate-x-1/2 lg:flex" />
+        {/* Centred on the bar from xl up, where there is room for it: the
+            nav is absolutely positioned there, so it sits in the middle of
+            the bar rather than wherever the logo and the buttons happen to
+            leave it.
+
+            Below xl it stays in the flow with ml-auto instead. Absolute
+            centring cannot be pushed: on a 1024-wide screen the centred nav
+            reached under the buttons, and dropping About and Contact from the
+            bar leaves only about 20px of clearance there -- still not enough
+            to centre on. In the flow the two auto margins split the slack
+            evenly, so the nav reads as centred between the logo and the
+            buttons and cannot collide with either. */}
+        <HeaderNav className="hidden lg:ml-auto lg:flex xl:absolute xl:left-1/2 xl:ml-0 xl:-translate-x-1/2" />
 
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle persist={signedIn} />

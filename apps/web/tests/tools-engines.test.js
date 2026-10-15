@@ -664,18 +664,19 @@ describe("footer tools column", () => {
     }
   });
 
-  // Enabling the Company column must not introduce a link to a page that does
-  // not exist. Only About has one today; the rest render as plain text.
-  it("only links Company entries that have a page", async () => {
+  // The company routes are built from lib/company/links.js, where every entry
+  // has a page -- tests/company-pages.test.js is what proves that. This one
+  // only checks the footer reads from that source rather than listing the
+  // routes again, and that the entries dropped in review stay dropped.
+  it("reads the Company group from the company links", async () => {
     const fs = await import("node:fs");
     const source = fs.readFileSync(new URL("../components/footer.jsx", import.meta.url), "utf8");
-    const company = source.slice(source.indexOf('title: "Company"'), source.indexOf('title: "Tools"'));
-    expect(company).toContain('{ label: "About", href: "/about" }');
-    for (const label of ["Contact", "Careers", "Open Source", "Blog"]) {
-      expect(company).toContain(`{ label: "${label}" }`);
-    }
+    expect(source).toContain('title: "Resources"');
+    expect(source).toContain('title: "Company", links: [...COMPANY_NAV');
+    expect(source).toContain("...COMPANY_CONTENT_LINKS");
+    expect(source).toContain('from "@/lib/company/links"');
     // Removed, as specified.
-    expect(company).not.toContain("Contributors");
+    expect(source).not.toContain("Contributors");
   });
 });
 

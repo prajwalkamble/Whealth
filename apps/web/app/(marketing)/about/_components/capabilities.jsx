@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   BarChart3,
+  CreditCard,
   Globe,
   PiggyBank,
   Sparkles,
@@ -9,9 +10,14 @@ import {
 import Section from "./section";
 import { cn } from "@/lib/utils";
 
-// "planned" is checked against the codebase, not aspiration: goals,
-// multi-currency and the intelligence layer have no implementation behind
-// them, so they carry a badge rather than being listed alongside what works.
+// "planned" is checked against the codebase, not aspiration: multi-currency
+// and the intelligence layer have no implementation behind them, so they carry
+// a badge rather than being listed alongside what works.
+//
+// Goals lost that badge once it shipped (app/(main)/goals). A built section
+// advertised as planned undersells the product exactly as much as a planned
+// one advertised as built oversells it, and both are the same mistake:
+// this list disagreeing with the application.
 const CAPABILITIES = [
   {
     icon: ArrowLeftRight,
@@ -33,8 +39,12 @@ const CAPABILITIES = [
   {
     icon: Target,
     title: "Goals",
-    body: "Turn financial objectives into measurable progress you can track against.",
-    planned: true,
+    body: "Set a target, record what you put towards it, and see progress derived from those contributions rather than a running total that can drift.",
+  },
+  {
+    icon: CreditCard,
+    title: "Cards",
+    body: "Keep track of the cards you use, their limits and their billing dates. Reference details only — there is no column for a card number, a CVV or a PIN.",
   },
   {
     icon: Globe,

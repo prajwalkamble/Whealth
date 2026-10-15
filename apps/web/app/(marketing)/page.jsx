@@ -1,10 +1,8 @@
 import HeroSection from "@/components/hero";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { featuresData, howItWorksData } from "@/data/landing";
 import { buildStatTiles } from "@/lib/stat-tiles";
 import { getLandingStats } from "@/lib/stats";
-import Link from "next/link";
 
 // The band drops a figure it cannot compute rather than showing a gap; the
 // About page renders the same tiles and shows the gap. Labels and formatting
@@ -90,28 +88,9 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="border-t py-20">
-        <div className="container mx-auto px-4">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-balance text-3xl font-bold tracking-tight">
-              Ready to take control of your finances?
-            </h2>
-            {/* No user count. There is nothing here that cannot be backed up. */}
-            <p className="mt-4 text-muted-foreground">
-              Bring your accounts, spending and budgets into one place, and see
-              where your money actually goes.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Button size="lg" asChild>
-                <Link href="/sign-up">Get Started</Link>
-              </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link href="/demo">Explore WHealthOS</Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* The closing call to action lives in the footer now, where it is on
+          every page rather than only this one. Two of them, stacked, said the
+          same thing twice. */}
     </div>
   );
 }

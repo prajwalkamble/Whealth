@@ -10,6 +10,7 @@ import Philosophy from "./_components/philosophy";
 import Enterprise from "./_components/enterprise";
 import Trust from "./_components/trust";
 import Promise from "./_components/promise";
+import Status from "./_components/status";
 import AboutCta from "./_components/about-cta";
 import { getLandingStats } from "@/lib/stats";
 import { buildStatTiles } from "@/lib/stat-tiles";
@@ -17,7 +18,8 @@ import { buildStatTiles } from "@/lib/stat-tiles";
 export const metadata = {
   title: "WHealthOS — About",
   description:
-    "Learn why WHealthOS exists, what we’re building, and our vision for clearer, more intelligent financial management.",
+    "What WHealthOS is, the financial-management problem it is built against, what works today and what does not exist yet.",
+  alternates: { canonical: "/about" },
 };
 
 // A server component throughout: nothing on this page needs state, so none of
@@ -57,6 +59,11 @@ export default async function AboutPage() {
       <Enterprise />
       <Trust />
       <Promise />
+      {/* Last before the call to action: everything above describes what
+          WHealthOS is for, and this is the line between the part that works
+          and the part that does not. Asking someone to sign up without it
+          would be asking them to infer it. */}
+      <Status />
       <AboutCta />
     </div>
   );
